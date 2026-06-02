@@ -1,8 +1,9 @@
+import { planConsentCleanup } from "@/lib/agent/consentPlanner";
 import { generateAuditReport, type ConsentOpsAuditReport } from "@/lib/audit/auditReport";
 import { MockFivetranAdapter } from "@/lib/connectors/mockFivetranAdapter";
 import { executeCleanupActions } from "@/lib/execution/cleanupExecutor";
 import type { ExecutionApproval } from "@/lib/execution/safetyPolicy";
-import { demoCleanupPlan, getEmailSha256 } from "@/lib/demo/seedData";
+import { getEmailSha256 } from "@/lib/demo/seedData";
 import {
   getDemoWorkflowState,
   updateDemoWorkflowState,
@@ -11,7 +12,7 @@ import {
   buildDataSpreadMap,
   scanSubjectAcrossWarehouse,
 } from "@/lib/warehouse/localWarehouse";
-import type { CleanupPlan, ConsentSubject, DataMatch } from "@/lib/warehouse/types";
+import type { ConsentSubject, DataMatch } from "@/lib/warehouse/types";
 
 const fivetranAdapter = new MockFivetranAdapter();
 
@@ -42,21 +43,6 @@ export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
   };
 };
 
-const buildPlanFromMatches = (matches: DataMatch[]): CleanupPlan => {
-  const allowedRecordIds = new Set(matches.map((match) => match.recordId));
-  const actions = demoCleanupPlan.actions.filter((action) =>
-    action.recordIds.every((recordId) => allowedRecordIds.has(recordId)),
-  );
-
-  return {
-    ...demoCleanupPlan,
-    id: `plan_demo_${Date.now()}`,
-    createdAtIso: new Date().toISOString(),
-    totalMatchesBeforeCleanup: matches.length,
-    actions: actions.map((action) => ({ ...action, recordIds: [...action.recordIds] })),
-  };
-};
-
 export const buildDemoPlan = async (input?: {
   subject?: Partial<ConsentSubject>;
   matches?: DataMatch[];
@@ -74,7 +60,7 @@ export const buildDemoPlan = async (input?: {
       : currentState.subject;
 
   const matches = input?.matches ? cloneMatches(input.matches) : scanSubjectAcrossWarehouse(subject, currentState.tables);
-  const plan = buildPlanFromMatches(matches);
+  const { plan } = await planConsentCleanup({ subject, matches });
   updateDemoWorkflowState({ subject, latestPlan: plan, latestAudit: null });
   return plan;
 };
