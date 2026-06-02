@@ -38,11 +38,19 @@ export const MATCH_FIELDS = {
 } as const;
 
 export type MatchField = (typeof MATCH_FIELDS)[keyof typeof MATCH_FIELDS];
+export type MatchConfidence = "high" | "medium" | "low";
+export type SuggestedSensitivity =
+  | "direct_identifier"
+  | "derived_identifier"
+  | "free_text"
+  | "transaction_record";
 
 export interface DataMatch {
   table: WarehouseTableName;
   recordId: string;
   matchedFields: MatchField[];
+  confidence: MatchConfidence;
+  suggestedSensitivity: SuggestedSensitivity;
 }
 
 export type ConnectorHealth = "healthy" | "degraded" | "offline";
