@@ -1,0 +1,73 @@
+---
+description: ConsentOps Agent hackathon guardrails — safety, adapters, and scope
+alwaysApply: true
+---
+
+# ConsentOps Agent — project rules
+
+## Purpose
+
+Hackathon demo: consent withdrawal → discover PII across synced data → classified cleanup plan → **human approval** → execute → verify → audit. Polished UX; not production compliance software.
+
+## Stack
+
+Next.js, TypeScript, Tailwind, Vitest. Keep code simple and readable.
+
+## Non-negotiable safety
+
+- **Synthetic demo data only** — fixtures under `data/`; fictional personas. Never ingest or process real PII.
+- **No destructive action without explicit human approval** — execution must check approval state; UI must require a deliberate confirm.
+- **Every cleanup action** must have classification: `delete` | `anonymize` | `retain` | `review`.
+- **`retain` requires `retainReason`** — reject invalid plans at validation time.
+- **Demo mode** (`CONSENTOPS_DEMO_MODE=true`): restrict operations to allowlisted synthetic subject IDs from fixtures.
+
+## Adapters (required pattern)
+
+Implement behind interfaces; inject via factory or DI — do not call vendor SDKs from UI or route handlers directly.
+
+| Integration | Start with | Interface location (planned) |
+|-------------|------------|------------------------------|
+| Warehouse | `LocalJsonWarehouseAdapter` | `src/adapters/warehouse/` |
+| Fivetran | `MockFivetranAdapter` | `src/adapters/fivetran/` |
+| Gemini | API adapter + **`DeterministicGeminiFallback`** when no `GEMINI_API_KEY` | `src/adapters/gemini/` |
+
+Deterministic fallback must produce stable, demo-safe output (no random hallucinated PII or actions).
+
+## Out of scope
+
+Do not add: auth, billing, multi-user accounts, production infra, real connector credentials in repo, or features unrelated to the demo flow.
+
+## Tests required for safety-critical logic
+
+Add Vitest coverage when implementing:
+
+- Classification enum enforcement and `retain` + reason validation
+- Approval gate before execution
+- Rejection of unapproved / unknown action types
+- Synthetic-only subject allowlist in demo mode
+- Audit trail completeness for state transitions
+
+## Code style
+
+- Prefer small modules: `discovery`, `planning`, `approval`, `execution`, `verification`, `audit`
+- Domain types in `src/domain/` — UI imports types, not adapter internals
+- Comments only for non-obvious business rules (e.g. why a field is `retain`)
+
+## Example: valid cleanup action
+
+```typescript
+{
+  id: "act-001",
+  table: "crm_contacts",
+  rowId: "contact-42",
+  classification: "retain",
+  retainReason: "Open legal hold on account per demo policy",
+  fields: ["email"]
+}
+```
+
+## Example: invalid — reject at plan time
+
+```typescript
+{ classification: "retain" } // missing retainReason
+```
