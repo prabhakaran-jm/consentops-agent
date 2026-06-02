@@ -1,3 +1,4 @@
+import { generateAuditReport, type ConsentOpsAuditReport } from "@/lib/audit/auditReport";
 import { MockFivetranAdapter } from "@/lib/connectors/mockFivetranAdapter";
 import { executeCleanupActions } from "@/lib/execution/cleanupExecutor";
 import type { ExecutionApproval } from "@/lib/execution/safetyPolicy";
@@ -10,12 +11,7 @@ import {
   buildDataSpreadMap,
   scanSubjectAcrossWarehouse,
 } from "@/lib/warehouse/localWarehouse";
-import type {
-  AuditReport,
-  CleanupPlan,
-  ConsentSubject,
-  DataMatch,
-} from "@/lib/warehouse/types";
+import type { CleanupPlan, ConsentSubject, DataMatch } from "@/lib/warehouse/types";
 
 const fivetranAdapter = new MockFivetranAdapter();
 
@@ -113,23 +109,19 @@ export const executeDemoPlan = async (payload: {
   });
 
   const postMatches = scanSubjectAcrossWarehouse(state.subject, execution.tables);
-  const retainedRecords = state.latestPlan.actions.filter(
-    (action) =>
-      payload.approvedActionIds.includes(action.id) && action.classification === "retain",
-  );
+  const connectors = await fivetranAdapter.listConnectors();
 
-  const audit: AuditReport = {
-    id: `audit_demo_${Date.now()}`,
+  const audit = generateAuditReport({
+    subject: state.subject,
+    connectors,
+    warehouseTablesScanned: state.tables.map((table) => table.name),
+    recordsFoundBefore: liveMatches.length,
+    plan: state.latestPlan,
+    approval,
+    executedActionIds: execution.executedActionIds,
+    recordsRemainingAfter: postMatches.length,
     requestId: `req_demo_${Date.now()}`,
-    subjectId: state.subject.id,
-    generatedAtIso: new Date().toISOString(),
-    approvedBy: approval.approvedBy,
-    totalMatchesBeforeCleanup: liveMatches.length,
-    remainingMatchesAfterCleanup: postMatches.length,
-    retainedRecords: retainedRecords.map((action) => ({ ...action, recordIds: [...action.recordIds] })),
-    notes:
-      "Demo execution completed with explicit approval. Records are only mutated for approved actions that pass safety policy.",
-  };
+  });
 
   updateDemoWorkflowState({
     tables: execution.tables,
@@ -143,7 +135,7 @@ export const executeDemoPlan = async (payload: {
   };
 };
 
-export const getLatestDemoAudit = async (): Promise<AuditReport | null> => {
+export const getLatestDemoAudit = async (): Promise<ConsentOpsAuditReport | null> => {
   const state = getDemoWorkflowState();
   if (!state.latestAudit) {
     return null;

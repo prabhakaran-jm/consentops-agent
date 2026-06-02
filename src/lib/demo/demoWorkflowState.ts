@@ -1,11 +1,12 @@
+import type { ConsentOpsAuditReport } from "@/lib/audit/auditReport";
 import { demoSubject, demoWarehouseTables } from "@/lib/demo/seedData";
-import type { AuditReport, CleanupPlan, ConsentSubject, WarehouseTable } from "@/lib/warehouse/types";
+import type { CleanupPlan, ConsentSubject, WarehouseTable } from "@/lib/warehouse/types";
 
 type DemoWorkflowState = {
   subject: ConsentSubject;
   tables: WarehouseTable[];
   latestPlan: CleanupPlan | null;
-  latestAudit: AuditReport | null;
+  latestAudit: ConsentOpsAuditReport | null;
 };
 
 const cloneTables = (tables: WarehouseTable[]): WarehouseTable[] =>
@@ -21,6 +22,31 @@ const createInitialState = (): DemoWorkflowState => ({
   latestAudit: null,
 });
 
+const cloneAudit = (audit: ConsentOpsAuditReport): ConsentOpsAuditReport => ({
+  ...audit,
+  requestSubject: { ...audit.requestSubject },
+  connectorsInspected: audit.connectorsInspected.map((c) => ({
+    ...c,
+    mappedTables: [...c.mappedTables],
+  })),
+  warehouseTablesScanned: [...audit.warehouseTablesScanned],
+  cleanupActionsProposed: audit.cleanupActionsProposed.map((a) => ({
+    ...a,
+    recordIds: [...a.recordIds],
+  })),
+  actionsApproved: audit.actionsApproved.map((a) => ({ ...a, recordIds: [...a.recordIds] })),
+  actionsExecuted: audit.actionsExecuted.map((a) => ({ ...a, recordIds: [...a.recordIds] })),
+  retainedRecordsWithReasons: audit.retainedRecordsWithReasons.map((r) => ({
+    ...r,
+    recordIds: [...r.recordIds],
+  })),
+  blockedActions: audit.blockedActions.map((b) => ({ ...b })),
+  approval: {
+    ...audit.approval,
+    approvedActionIds: [...audit.approval.approvedActionIds],
+  },
+});
+
 let state: DemoWorkflowState = createInitialState();
 
 export const getDemoWorkflowState = (): DemoWorkflowState => ({
@@ -32,15 +58,7 @@ export const getDemoWorkflowState = (): DemoWorkflowState => ({
         actions: state.latestPlan.actions.map((action) => ({ ...action, recordIds: [...action.recordIds] })),
       }
     : null,
-  latestAudit: state.latestAudit
-    ? {
-        ...state.latestAudit,
-        retainedRecords: state.latestAudit.retainedRecords.map((action) => ({
-          ...action,
-          recordIds: [...action.recordIds],
-        })),
-      }
-    : null,
+  latestAudit: state.latestAudit ? cloneAudit(state.latestAudit) : null,
 });
 
 export const updateDemoWorkflowState = (next: Partial<DemoWorkflowState>): void => {
@@ -52,14 +70,10 @@ export const updateDemoWorkflowState = (next: Partial<DemoWorkflowState>): void 
       ? { ...next.latestPlan, actions: next.latestPlan.actions.map((a) => ({ ...a, recordIds: [...a.recordIds] })) }
       : (next.latestPlan === null ? null : state.latestPlan),
     latestAudit: next.latestAudit
-      ? {
-          ...next.latestAudit,
-          retainedRecords: next.latestAudit.retainedRecords.map((a) => ({
-            ...a,
-            recordIds: [...a.recordIds],
-          })),
-        }
-      : (next.latestAudit === null ? null : state.latestAudit),
+      ? cloneAudit(next.latestAudit)
+      : next.latestAudit === null
+        ? null
+        : state.latestAudit,
   };
 };
 

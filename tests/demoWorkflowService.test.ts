@@ -71,8 +71,9 @@ describe("demo workflow service", () => {
 
     const audit = await getLatestDemoAudit();
     expect(audit).not.toBeNull();
-    expect(audit!.id.startsWith("audit_demo_")).toBe(true);
-    expect(audit!.approvedBy).toBe("demo-reviewer");
+    expect(audit!.id.startsWith("audit_")).toBe(true);
+    expect(audit!.approval.approvedBy).toBe("demo-reviewer");
+    expect(audit!.recordsFoundBefore).toBeGreaterThan(0);
   });
 
   it("normal scan -> plan -> execute -> audit flow works", async () => {

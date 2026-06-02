@@ -1,11 +1,7 @@
 import type { FivetranConnector } from "@/lib/connectors/fivetranAdapter";
 import type { DataSpreadMap } from "@/lib/warehouse/localWarehouse";
-import type {
-  AuditReport,
-  CleanupPlan,
-  ConsentSubject,
-  DataMatch,
-} from "@/lib/warehouse/types";
+import type { ConsentOpsAuditReport } from "@/lib/audit/auditReport";
+import type { CleanupPlan, ConsentSubject, DataMatch } from "@/lib/warehouse/types";
 
 export type ScanResponse = {
   subject: ConsentSubject;
@@ -22,9 +18,9 @@ export type PlanResponse = {
 export type ExecuteResponse = {
   execution: { executedActionIds: string[] };
   afterCount: number;
-  audit: AuditReport;
+  audit: ConsentOpsAuditReport;
 };
 
 export type AuditResponse =
   | { status: "no_execution_yet"; audit: null }
-  | { status: "ok"; audit: AuditReport };
+  | { status: "ok"; audit: ConsentOpsAuditReport };

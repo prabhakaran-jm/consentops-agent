@@ -22,7 +22,6 @@ export function ConsentOpsDashboard() {
     status: "no_execution_yet",
     audit: null,
   });
-  const [afterCount, setAfterCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingScan, setLoadingScan] = useState(false);
   const [loadingPlan, setLoadingPlan] = useState(false);
@@ -34,9 +33,6 @@ export function ConsentOpsDashboard() {
     if (!res.ok) return;
     const data = (await res.json()) as AuditResponse;
     setAudit(data);
-    if (data.status === "no_execution_yet") {
-      setAfterCount(null);
-    }
   };
 
   useEffect(() => {
@@ -93,7 +89,6 @@ export function ConsentOpsDashboard() {
       setSelectedIds(new Set());
       setExecutionCompleted(false);
       setAudit({ status: "no_execution_yet", audit: null });
-      setAfterCount(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Plan generation failed");
     } finally {
@@ -119,7 +114,6 @@ export function ConsentOpsDashboard() {
         throw new Error(body.message ?? body.error ?? "Execution failed");
       }
       const data = body as ExecuteResponse;
-      setAfterCount(data.afterCount);
       setAudit({ status: "ok", audit: data.audit });
       setSelectedIds(new Set());
       setExecutionCompleted(true);
@@ -205,12 +199,7 @@ export function ConsentOpsDashboard() {
         />
       </div>
 
-      <AuditReportPanel
-        audit={auditReport}
-        pending={auditPending}
-        beforeCount={scan?.beforeCount ?? auditReport?.totalMatchesBeforeCleanup ?? null}
-        afterCount={afterCount}
-      />
+      <AuditReportPanel audit={auditReport} pending={auditPending} />
     </div>
   );
 }
