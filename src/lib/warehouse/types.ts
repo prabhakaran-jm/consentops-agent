@@ -30,7 +30,14 @@ export interface WarehouseTable {
   records: WarehouseRecord[];
 }
 
-export type MatchField = "email" | "phone" | "customerId" | "emailSha256";
+export const MATCH_FIELDS = {
+  email: "email",
+  phone: "phone",
+  customerId: "customerId",
+  emailSha256: "emailSha256",
+} as const;
+
+export type MatchField = (typeof MATCH_FIELDS)[keyof typeof MATCH_FIELDS];
 
 export interface DataMatch {
   table: WarehouseTableName;
@@ -54,7 +61,7 @@ export type CleanupClassification = "delete" | "anonymize" | "retain" | "review"
 export interface CleanupAction {
   id: string;
   table: WarehouseTableName;
-  recordId: string;
+  recordIds: string[];
   classification: CleanupClassification;
   fields: string[];
   retainReason?: string;

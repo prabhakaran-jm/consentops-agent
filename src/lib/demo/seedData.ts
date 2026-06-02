@@ -6,9 +6,12 @@ import type {
   CleanupPlan,
   ConnectorStatus,
   ConsentSubject,
+  MatchField,
+  WarehouseRecord,
   WarehouseTable,
   WarehouseTableName,
 } from "@/lib/warehouse/types";
+import { MATCH_FIELDS } from "@/lib/warehouse/types";
 
 export const getEmailSha256 = (email: string): string =>
   createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
@@ -26,7 +29,7 @@ const record = (
   table: WarehouseTableName,
   id: string,
   overrides: Record<string, unknown> = {},
-) => ({
+): WarehouseRecord => ({
   id: `${table}_${id}`,
   ...overrides,
 });
@@ -283,6 +286,29 @@ export const demoWarehouseTables: WarehouseTable[] = [
   },
 ];
 
+const getMatchedFieldsForRecord = (record: WarehouseRecord): MatchField[] => {
+  const fields: MatchField[] = [];
+  if (record[MATCH_FIELDS.email] === demoSubject.email) fields.push(MATCH_FIELDS.email);
+  if (record[MATCH_FIELDS.phone] === demoSubject.phone) fields.push(MATCH_FIELDS.phone);
+  if (record[MATCH_FIELDS.customerId] === demoSubject.customerId) {
+    fields.push(MATCH_FIELDS.customerId);
+  }
+  if (record[MATCH_FIELDS.emailSha256] === demoSubject.emailSha256) {
+    fields.push(MATCH_FIELDS.emailSha256);
+  }
+  return fields;
+};
+
+export const demoMatchedRecords = demoWarehouseTables.flatMap((table) =>
+  table.records
+    .map((currentRecord) => ({
+      table: table.name,
+      record: currentRecord,
+      matchedFields: getMatchedFieldsForRecord(currentRecord),
+    }))
+    .filter((entry) => entry.matchedFields.length > 0),
+);
+
 export const connectorStatuses: ConnectorStatus[] = [
   {
     connectorId: "conn_hubspot_demo",
@@ -310,48 +336,77 @@ export const connectorStatuses: ConnectorStatus[] = [
   },
 ];
 
-export const retainedPaymentActions: CleanupAction[] = [
-  {
-    id: "act_pay_001",
-    table: "payments_transactions",
-    recordId: "payments_transactions_001",
-    classification: "retain",
-    fields: ["customerId", "email", "amount"],
-    retainReason: "Financial retention review required",
-  },
-  {
-    id: "act_pay_002",
-    table: "payments_transactions",
-    recordId: "payments_transactions_002",
-    classification: "retain",
-    fields: ["customerId", "email", "amount"],
-    retainReason: "Financial retention review required",
-  },
-  {
-    id: "act_pay_003",
-    table: "payments_transactions",
-    recordId: "payments_transactions_003",
-    classification: "retain",
-    fields: ["customerId", "email", "amount"],
-    retainReason: "Financial retention review required",
-  },
-];
+const reviewRecordIds = new Set<string>([
+  "ai_training_feedback_export_007",
+  "support_tickets_005",
+]);
+
+const anonymizeTables = new Set<WarehouseTableName>([
+  "marketing_email_events",
+  "analytics_customer_360",
+  "ai_training_feedback_export",
+]);
+
+const actionForMatchedRecord = (
+  match: (typeof demoMatchedRecords)[number],
+  index: number,
+): CleanupAction => {
+  const recordId = match.record.id;
+  const table = match.table;
+
+  if (table === "payments_transactions") {
+    return {
+      id: `act_${String(index + 1).padStart(3, "0")}`,
+      table,
+      recordIds: [recordId],
+      classification: "retain",
+      fields: [...match.matchedFields, "amount"],
+      retainReason: "Financial retention review required",
+    };
+  }
+
+  if (reviewRecordIds.has(recordId)) {
+    return {
+      id: `act_${String(index + 1).padStart(3, "0")}`,
+      table,
+      recordIds: [recordId],
+      classification: "review",
+      fields: match.matchedFields,
+    };
+  }
+
+  if (anonymizeTables.has(table)) {
+    return {
+      id: `act_${String(index + 1).padStart(3, "0")}`,
+      table,
+      recordIds: [recordId],
+      classification: "anonymize",
+      fields: match.matchedFields,
+    };
+  }
+
+  return {
+    id: `act_${String(index + 1).padStart(3, "0")}`,
+    table,
+    recordIds: [recordId],
+    classification: "delete",
+    fields: match.matchedFields,
+  };
+};
+
+const allCleanupActions: CleanupAction[] = demoMatchedRecords.map(actionForMatchedRecord);
+const retainedActions = allCleanupActions.filter((action) => action.classification === "retain");
+const reviewActions = allCleanupActions.filter((action) => action.classification === "review");
+export const retainedPaymentActions = retainedActions.filter(
+  (action) => action.table === "payments_transactions",
+);
 
 export const demoCleanupPlan: CleanupPlan = {
   id: "plan_ana_20260602",
   subjectId: demoSubject.id,
   createdAtIso: "2026-06-02T08:05:00.000Z",
-  totalMatchesBeforeCleanup: 37,
-  actions: [
-    ...retainedPaymentActions,
-    {
-      id: "act_review_001",
-      table: "ai_training_feedback_export",
-      recordId: "ai_training_feedback_export_007",
-      classification: "review",
-      fields: ["emailSha256", "feedbackScore"],
-    },
-  ],
+  totalMatchesBeforeCleanup: demoMatchedRecords.length,
+  actions: allCleanupActions,
 };
 
 export const demoAuditReport: AuditReport = {
@@ -360,8 +415,9 @@ export const demoAuditReport: AuditReport = {
   subjectId: demoSubject.id,
   generatedAtIso: "2026-06-02T08:15:00.000Z",
   approvedBy: "demo.operator@consentops.local",
-  totalMatchesBeforeCleanup: 37,
-  remainingMatchesAfterCleanup: 3,
-  retainedRecords: retainedPaymentActions,
-  notes: "Retained payment records only. All other matched records are deleted or anonymized.",
+  totalMatchesBeforeCleanup: demoCleanupPlan.totalMatchesBeforeCleanup,
+  remainingMatchesAfterCleanup: retainedActions.length + reviewActions.length,
+  retainedRecords: retainedActions,
+  notes:
+    "Matched records were assigned delete, anonymize, retain, or review actions. Retained and review records remain with reasons.",
 };
