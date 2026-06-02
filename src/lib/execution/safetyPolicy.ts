@@ -71,8 +71,11 @@ export const validateCleanupActionSafety = (input: SafetyPolicyInput): void => {
     assert(approvalRequired, `Destructive action '${action.id}' blocked when approvalRequired=false.`);
   }
 
-  if (action.table === "payments_transactions" && action.classification === "delete") {
-    throw new Error("Delete on payments_transactions is forbidden by safety policy.");
+  if (
+    action.table === "payments_transactions" &&
+    (action.classification === "delete" || action.classification === "anonymize")
+  ) {
+    throw new Error("Payment transaction records cannot be deleted or anonymized automatically.");
   }
 
   for (const recordId of action.recordIds) {

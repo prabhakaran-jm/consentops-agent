@@ -105,7 +105,7 @@ describe("validateCleanupActionSafety", () => {
     ).toThrow(/approvalRequired=false/);
   });
 
-  it("rejects payment transaction delete", () => {
+  it("rejects delete on payments_transactions", () => {
     const action: CleanupAction = {
       ...baseAction,
       table: "payments_transactions",
@@ -122,7 +122,33 @@ describe("validateCleanupActionSafety", () => {
         matchedRecordIds: new Set(["payments_transactions_001"]),
         knownRecordIds: new Set(["payments_transactions_001"]),
       }),
-    ).toThrow(/forbidden/);
+    ).toThrow("Payment transaction records cannot be deleted or anonymized automatically.");
+  });
+
+  it("rejects anonymize on payments_transactions", () => {
+    const action: CleanupAction = {
+      ...baseAction,
+      id: "act_anon_pay_1",
+      table: "payments_transactions",
+      recordIds: ["payments_transactions_001"],
+      classification: "anonymize",
+    };
+    const plan: CleanupPlan = { ...basePlan, actions: [action] };
+    const approval: ExecutionApproval = {
+      ...baseApproval,
+      approvedActionIds: [action.id],
+    };
+
+    expect(() =>
+      validateCleanupActionSafety({
+        action,
+        plan,
+        approval,
+        approvalRequired: true,
+        matchedRecordIds: new Set(["payments_transactions_001"]),
+        knownRecordIds: new Set(["payments_transactions_001"]),
+      }),
+    ).toThrow("Payment transaction records cannot be deleted or anonymized automatically.");
   });
 
   it("rejects action on unmatched record", () => {
@@ -182,6 +208,59 @@ describe("validateCleanupActionSafety", () => {
         approvalRequired: true,
         matchedRecordIds: new Set(baseMatches.map((match) => match.recordId)),
         knownRecordIds: new Set(["crm_customers_001"]),
+      }),
+    ).not.toThrow();
+  });
+
+  it("allows retain on payments_transactions", () => {
+    const action: CleanupAction = {
+      ...baseAction,
+      id: "act_retain_pay_1",
+      table: "payments_transactions",
+      recordIds: ["payments_transactions_001"],
+      classification: "retain",
+      retainReason: "Financial retention review required",
+    };
+    const plan: CleanupPlan = { ...basePlan, actions: [action] };
+    const approval: ExecutionApproval = {
+      ...baseApproval,
+      approvedActionIds: [action.id],
+    };
+
+    expect(() =>
+      validateCleanupActionSafety({
+        action,
+        plan,
+        approval,
+        approvalRequired: true,
+        matchedRecordIds: new Set(["payments_transactions_001"]),
+        knownRecordIds: new Set(["payments_transactions_001"]),
+      }),
+    ).not.toThrow();
+  });
+
+  it("allows review on payments_transactions when plan and approval match", () => {
+    const action: CleanupAction = {
+      ...baseAction,
+      id: "act_review_pay_1",
+      table: "payments_transactions",
+      recordIds: ["payments_transactions_001"],
+      classification: "review",
+    };
+    const plan: CleanupPlan = { ...basePlan, actions: [action] };
+    const approval: ExecutionApproval = {
+      ...baseApproval,
+      approvedActionIds: [action.id],
+    };
+
+    expect(() =>
+      validateCleanupActionSafety({
+        action,
+        plan,
+        approval,
+        approvalRequired: true,
+        matchedRecordIds: new Set(["payments_transactions_001"]),
+        knownRecordIds: new Set(["payments_transactions_001"]),
       }),
     ).not.toThrow();
   });
