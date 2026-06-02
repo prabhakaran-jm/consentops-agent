@@ -21,6 +21,8 @@ npm run lint
 npm run build
 ```
 
+**Deployment:** see [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) for Docker and Cloud Run demo deployment.
+
 ## Operating modes
 
 ### Mock demo mode (default)
