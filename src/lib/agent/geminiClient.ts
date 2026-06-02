@@ -16,13 +16,24 @@ export const getGeminiConfigFromEnv = (): GeminiClientConfig | null => {
   };
 };
 
+const redactApiKey = (text: string, apiKey: string): string => {
+  if (!apiKey) return text;
+  let redacted = text.includes(apiKey) ? text.split(apiKey).join("[REDACTED]") : text;
+  redacted = redacted.replace(/([?&]key=)[^&\s"']+/gi, "$1[REDACTED]");
+  return redacted;
+};
+
 export const createGeminiClient = (config: GeminiClientConfig): GeminiClient => ({
   async generateJson(prompt: string): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
+    // This demo uses synthetic subject data only. Do not send real personal data to Gemini without a proper privacy review.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`;
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.apiKey,
+      },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
@@ -34,7 +45,9 @@ export const createGeminiClient = (config: GeminiClientConfig): GeminiClient => 
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Gemini API error (${response.status}): ${errorBody}`);
+      throw new Error(
+        `Gemini API error (${response.status}): ${redactApiKey(errorBody, config.apiKey)}`,
+      );
     }
 
     const data = (await response.json()) as {
