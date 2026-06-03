@@ -8,7 +8,6 @@ import type {
   CleanupPlan,
   ConsentSubject,
   DataMatch,
-  MatchField,
   WarehouseTableName,
 } from "@/lib/warehouse/types";
 
