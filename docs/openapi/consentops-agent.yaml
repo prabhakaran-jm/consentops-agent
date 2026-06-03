@@ -1,0 +1,351 @@
+openapi: 3.1.0
+info:
+  title: ConsentOps Agent API (read-only)
+  version: 0.1.0
+  description: |
+    Read-only agent surface for the ConsentOps hackathon demo.
+
+    **Synthetic data only** — do not send real personal data.
+
+    This spec exposes **one** operation: scan a synthetic subject across the demo warehouse and
+    generate a classified cleanup plan. It does **not** execute cleanup, trigger Fivetran syncs,
+    or certify regulatory compliance.
+
+    Human approval and execution remain in the ConsentOps web UI (`POST /api/execute` is intentionally
+    omitted from this spec).
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://YOUR_CLOUD_RUN_URL
+    description: Replace with your deployed Cloud Run service URL
+
+paths:
+  /api/agent/plan:
+    post:
+      operationId: consentOpsScanAndPlan
+      summary: Scan synthetic warehouse and generate cleanup plan
+      description: |
+        Runs the demo scan → plan workflow in one call. Returns Fivetran read-only connector
+        summary (redacted IDs), data spread map, and a record-scoped cleanup plan with planner
+        provenance (`gemini` or `deterministic`).
+
+        Rejects request bodies that include execution fields (e.g. `approvalId`,
+        `approvedActionIds`, `execute`, `cleanupActions`).
+      tags:
+        - Agent (read-only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentPlanRequest"
+            examples:
+              defaultSubject:
+                summary: Use demo default subject (Ana Reyes)
+                value: {}
+              partialSubject:
+                summary: Optional subject overrides (still synthetic demo)
+                value:
+                  subject:
+                    fullName: Ana Reyes
+                    email: ana.reyes@example.com
+      responses:
+        "200":
+          description: Scan and plan completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentPlanResponse"
+        "400":
+          description: Invalid payload or execution-shaped fields rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    AgentPlanRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        subject:
+          $ref: "#/components/schemas/ConsentSubjectPartial"
+      description: |
+        Optional subject overrides. Omit for the default synthetic demo subject.
+        Do not include execution fields — they are rejected.
+
+    ConsentSubjectPartial:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        customerId:
+          type: string
+        emailSha256:
+          type: string
+
+    AgentPlanResponse:
+      type: object
+      required:
+        - capability
+        - disclaimer
+        - scan
+        - plan
+        - source
+        - blockedActions
+      properties:
+        capability:
+          type: string
+          enum:
+            - scan_and_plan_only
+        disclaimer:
+          type: string
+          description: Synthetic-only notice; execution is UI-only
+        scan:
+          $ref: "#/components/schemas/AgentScanSummary"
+        plan:
+          $ref: "#/components/schemas/CleanupPlan"
+        source:
+          type: string
+          enum:
+            - gemini
+            - deterministic
+          description: Whether Gemini or deterministic fallback produced the plan
+        warning:
+          type: string
+          nullable: true
+          description: Present when deterministic fallback was used after Gemini failure or validation
+        blockedActions:
+          type: array
+          items:
+            type: string
+          description: Policy items that cannot be auto-executed
+
+    AgentScanSummary:
+      type: object
+      required:
+        - subject
+        - fivetran
+        - beforeCount
+        - spreadMap
+        - matchCount
+      properties:
+        subject:
+          $ref: "#/components/schemas/ConsentSubject"
+        fivetran:
+          $ref: "#/components/schemas/FivetranPanelData"
+        beforeCount:
+          type: integer
+          minimum: 0
+        matchCount:
+          type: integer
+          minimum: 0
+        spreadMap:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DataSpreadMapEntry"
+
+    ConsentSubject:
+      type: object
+      required:
+        - id
+        - fullName
+        - email
+        - phone
+        - customerId
+        - emailSha256
+      properties:
+        id:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        customerId:
+          type: string
+        emailSha256:
+          type: string
+
+    FivetranPanelData:
+      type: object
+      required:
+        - mode
+        - modeLabel
+        - readOnlyNote
+        - connectionCount
+        - healthSummary
+        - connectors
+      properties:
+        mode:
+          type: string
+          enum:
+            - mock
+            - real_configured_stub
+        modeLabel:
+          type: string
+        readOnlyNote:
+          type: string
+        connectionCount:
+          type: integer
+        healthSummary:
+          $ref: "#/components/schemas/FivetranHealthSummary"
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FivetranConnectorPanelItem"
+
+    FivetranHealthSummary:
+      type: object
+      properties:
+        healthy:
+          type: integer
+        warning:
+          type: integer
+        offline:
+          type: integer
+
+    FivetranConnectorPanelItem:
+      type: object
+      description: Connector IDs are redacted (displayKey only)
+      properties:
+        displayKey:
+          type: string
+          example: connector_01
+        name:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+        health:
+          type: string
+          enum:
+            - healthy
+            - warning
+            - offline
+        lastSyncedAtIso:
+          type: string
+          format: date-time
+        lastSyncStatus:
+          type: string
+          enum:
+            - success
+            - failed
+        mappedTables:
+          type: array
+          items:
+            type: string
+
+    DataSpreadMapEntry:
+      type: object
+      properties:
+        totalMatches:
+          type: integer
+        directIdentifierMatches:
+          type: integer
+        derivedIdentifierMatches:
+          type: integer
+        transactionRecordMatches:
+          type: integer
+        highConfidenceMatches:
+          type: integer
+        mediumConfidenceMatches:
+          type: integer
+        lowConfidenceMatches:
+          type: integer
+
+    CleanupPlan:
+      type: object
+      required:
+        - id
+        - subjectId
+        - createdAtIso
+        - totalMatchesBeforeCleanup
+        - actions
+      properties:
+        id:
+          type: string
+        subjectId:
+          type: string
+        createdAtIso:
+          type: string
+          format: date-time
+        totalMatchesBeforeCleanup:
+          type: integer
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CleanupAction"
+
+    CleanupAction:
+      type: object
+      required:
+        - id
+        - table
+        - recordIds
+        - classification
+        - fields
+      properties:
+        id:
+          type: string
+        table:
+          type: string
+          enum:
+            - crm_customers
+            - commerce_orders
+            - support_tickets
+            - marketing_email_events
+            - analytics_customer_360
+            - ai_training_feedback_export
+            - payments_transactions
+        recordIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          description: Record-scoped only; table-wide wildcards are blocked at execution
+        classification:
+          type: string
+          enum:
+            - delete
+            - anonymize
+            - retain
+            - review
+        fields:
+          type: array
+          items:
+            type: string
+        retainReason:
+          type: string
+          description: Required when classification is retain
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          description: Zod validation issues when applicable
+
+tags:
+  - name: Agent (read-only)
+    description: Scan and plan only — no destructive operations

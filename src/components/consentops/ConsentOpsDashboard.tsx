@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { demoSubject } from "@/lib/demo/seedData";
+import type { PlatformStatus } from "@/lib/platform/platformStatus";
 import type { CleanupPlan, ConsentSubject } from "@/lib/warehouse/types";
 
 import { ApprovalPanel } from "./ApprovalPanel";
@@ -11,12 +12,20 @@ import { CleanupPlanPanel } from "./CleanupPlanPanel";
 import { DataSpreadMapPanel } from "./DataSpreadMapPanel";
 import { DeletionRequestCard } from "./DeletionRequestCard";
 import { FivetranConnectorPanel } from "./FivetranConnectorPanel";
-import type { AuditResponse, ExecuteResponse, PlanResponse, ScanResponse } from "./types";
+import { PlatformStatusPanel } from "./PlatformStatusPanel";
+import type {
+  AuditResponse,
+  ExecuteResponse,
+  PlanProvenance,
+  PlanResponse,
+  ScanResponse,
+} from "./types";
 
 export function ConsentOpsDashboard() {
   const [subject] = useState<ConsentSubject>(demoSubject);
   const [scan, setScan] = useState<ScanResponse | null>(null);
   const [plan, setPlan] = useState<CleanupPlan | null>(null);
+  const [planProvenance, setPlanProvenance] = useState<PlanProvenance | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [audit, setAudit] = useState<AuditResponse>({
     status: "no_execution_yet",
@@ -27,6 +36,14 @@ export function ConsentOpsDashboard() {
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [loadingExecute, setLoadingExecute] = useState(false);
   const [executionCompleted, setExecutionCompleted] = useState(false);
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  const refreshPlatformStatus = async () => {
+    const res = await fetch("/api/status");
+    if (!res.ok) return;
+    setPlatformStatus((await res.json()) as PlatformStatus);
+  };
 
   const refreshAudit = async () => {
     const res = await fetch("/api/audit");
@@ -38,10 +55,19 @@ export function ConsentOpsDashboard() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const res = await fetch("/api/audit");
-      if (!res.ok || !active) return;
-      const data = (await res.json()) as AuditResponse;
-      setAudit(data);
+      setLoadingStatus(true);
+      try {
+        const [auditRes, statusRes] = await Promise.all([fetch("/api/audit"), fetch("/api/status")]);
+        if (!active) return;
+        if (auditRes.ok) {
+          setAudit((await auditRes.json()) as AuditResponse);
+        }
+        if (statusRes.ok) {
+          setPlatformStatus((await statusRes.json()) as PlatformStatus);
+        }
+      } finally {
+        if (active) setLoadingStatus(false);
+      }
     })();
     return () => {
       active = false;
@@ -60,9 +86,10 @@ export function ConsentOpsDashboard() {
       const data = (await res.json()) as ScanResponse;
       setScan(data);
       setPlan(null);
+      setPlanProvenance(null);
       setSelectedIds(new Set());
       setExecutionCompleted(false);
-      await refreshAudit();
+      await Promise.all([refreshAudit(), refreshPlatformStatus()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed");
     } finally {
@@ -86,9 +113,15 @@ export function ConsentOpsDashboard() {
       }
       const data = (await res.json()) as PlanResponse;
       setPlan(data.plan);
+      setPlanProvenance({
+        source: data.source,
+        warning: data.warning,
+        blockedActions: data.blockedActions,
+      });
       setSelectedIds(new Set());
       setExecutionCompleted(false);
       setAudit({ status: "no_execution_yet", audit: null });
+      await refreshPlatformStatus();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Plan generation failed");
     } finally {
@@ -117,6 +150,7 @@ export function ConsentOpsDashboard() {
       setAudit({ status: "ok", audit: data.audit });
       setSelectedIds(new Set());
       setExecutionCompleted(true);
+      await refreshPlatformStatus();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Execution failed");
     } finally {
@@ -155,6 +189,8 @@ export function ConsentOpsDashboard() {
         </p>
       </header>
 
+      <PlatformStatusPanel status={platformStatus} loading={loadingStatus} />
+
       {error && (
         <div
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
@@ -171,7 +207,7 @@ export function ConsentOpsDashboard() {
           loading={loadingScan}
           scanned={Boolean(scan)}
         />
-        <FivetranConnectorPanel connectors={scan?.connectors ?? null} />
+        <FivetranConnectorPanel fivetran={scan?.fivetran ?? null} />
       </div>
 
       <DataSpreadMapPanel
@@ -183,6 +219,7 @@ export function ConsentOpsDashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
         <CleanupPlanPanel
           plan={plan}
+          provenance={planProvenance}
           onGenerate={handleGeneratePlan}
           loading={loadingPlan}
           canGenerate={Boolean(scan)}

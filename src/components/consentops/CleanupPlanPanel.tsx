@@ -1,7 +1,8 @@
-import { ClipboardList, ShieldBan } from "lucide-react";
+import { ClipboardList, ShieldBan, Sparkles } from "lucide-react";
 
 import type { CleanupAction, CleanupPlan } from "@/lib/warehouse/types";
 
+import type { PlanProvenance } from "./types";
 import { Badge, Panel, PrimaryButton } from "./ui";
 
 const BLOCKED_POLICIES = [
@@ -33,12 +34,13 @@ function classificationTone(c: CleanupAction["classification"]): "danger" | "war
 
 type Props = {
   plan: CleanupPlan | null;
+  provenance: PlanProvenance | null;
   onGenerate: () => void;
   loading: boolean;
   canGenerate: boolean;
 };
 
-export function CleanupPlanPanel({ plan, onGenerate, loading, canGenerate }: Props) {
+export function CleanupPlanPanel({ plan, provenance, onGenerate, loading, canGenerate }: Props) {
   const counts = plan
     ? {
         delete: plan.actions.filter((a) => a.classification === "delete").length,
@@ -51,7 +53,8 @@ export function CleanupPlanPanel({ plan, onGenerate, loading, canGenerate }: Pro
   return (
     <Panel title="Cleanup plan" step={4}>
       <p className="text-sm text-slate-600">
-        Every action targets explicit record IDs — no table-wide cleanup.
+        Every action targets explicit record IDs — no table-wide cleanup. Gemini is advisory only;
+        plans must pass deterministic safety validation (synthetic demo data).
       </p>
       <PrimaryButton onClick={onGenerate} loading={loading} disabled={!canGenerate}>
         <ClipboardList className="h-4 w-4" aria-hidden />
@@ -62,6 +65,26 @@ export function CleanupPlanPanel({ plan, onGenerate, loading, canGenerate }: Pro
         <p className="text-sm text-slate-500">Scan first, then generate a classified plan.</p>
       ) : (
         <>
+          {provenance && (
+            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {provenance.source === "gemini" ? (
+                  <Badge tone="info">
+                    <Sparkles className="mr-1 inline h-3 w-3" aria-hidden />
+                    Planned by Gemini
+                  </Badge>
+                ) : (
+                  <Badge tone="neutral">Deterministic fallback planner</Badge>
+                )}
+              </div>
+              {provenance.warning && (
+                <p className="text-xs text-amber-800" role="status">
+                  {provenance.warning}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             <Badge tone="danger">delete: {counts!.delete}</Badge>
             <Badge tone="warning">anonymize: {counts!.anonymize}</Badge>
@@ -102,9 +125,11 @@ export function CleanupPlanPanel({ plan, onGenerate, loading, canGenerate }: Pro
               Blocked by safety policy
             </p>
             <ul className="mt-2 list-inside list-disc text-xs text-slate-600">
-              {BLOCKED_POLICIES.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
+              {(provenance?.blockedActions.length ? provenance.blockedActions : BLOCKED_POLICIES).map(
+                (line) => (
+                  <li key={line}>{line}</li>
+                ),
+              )}
             </ul>
           </div>
         </>

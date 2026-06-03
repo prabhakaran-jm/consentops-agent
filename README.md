@@ -54,8 +54,10 @@ The agent proposes and coordinates; **humans approve**. Nothing destructive runs
 |---------|--------------|--------|
 | **Gemini** | Optional cleanup planning via `GEMINI_API_KEY`; deterministic fallback when absent or on failure | Implemented |
 | **Cloud Run** | Container deployment for hosted demos | Documented ([deployment guide](docs/cloud-run-deployment.md)) |
+| **Platform status** | `GET /api/status` — planner mode, adapter modes (no secrets) | Implemented |
+| **Agent tool API** | `POST /api/agent/plan` — scan + plan only ([OpenAPI](docs/openapi/consentops-agent.yaml)) | Implemented |
 | **BigQuery** | Production warehouse target for scan / dry-run / execute / verify | Stubbed (`bigQueryWarehouse.ts`) |
-| **Secret Manager** | Recommended for API keys in Cloud Run | Documented, not wired |
+| **Secret Manager** | Recommended for `GEMINI_API_KEY` on Cloud Run | Documented, not wired in app |
 
 The hackathon build runs locally on in-memory fixtures. Cloud Run deployment uses Docker + standalone Next.js output.
 
@@ -67,9 +69,10 @@ Fivetran is the **data movement layer** in the story: connectors sync operationa
 
 | Capability | Demo | Production placeholder |
 |------------|------|------------------------|
-| List connectors | `MockFivetranAdapter` | `realFivetranAdapter.ts` |
-| Connector health & sync history | Mock narrative data | Stubbed REST calls |
+| List connectors | `MockFivetranAdapter` (fail-closed factory) | `realFivetranAdapter.ts` (stubbed) |
+| Connector health & sync history | Mock data; redacted IDs in UI (`connector_01`, …) | Stubbed REST |
 | Trigger verification sync | Mock queue response | Stubbed |
+| MCP read-only evidence | [Template doc](docs/fivetran-mcp-evidence.md) | EXTERNAL/MANUAL — you complete |
 
 Fivetran **moves data**; ConsentOps **governs cleanup**. The mock adapter simulates connector cards in the UI. The real adapter is intentionally stubbed — sync only, never cleanup.
 
@@ -108,6 +111,8 @@ flowchart TB
     RPlan["/api/plan"]
     RExec["/api/execute"]
     RAudit["/api/audit"]
+    RStatus["/api/status"]
+    RAgent["/api/agent/plan"]
   end
 
   subgraph Agent["Planning agent"]
@@ -183,13 +188,68 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
-npm run test        # Vitest — 87 safety and workflow tests
+npm run test        # Vitest — 107 tests
 npm run typecheck
 npm run lint
 npm run build
 ```
 
 **Deployment:** [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) — Docker + Cloud Run with `--max-instances=1` for judged demos.
+
+---
+
+## Platform proof (hackathon)
+
+ConsentOps is an **operational agent**, not a compliance guarantee. This section maps what is real vs mocked for judges.
+
+### Hosted demo URL
+
+| Field | Value |
+|-------|-------|
+| **Cloud Run URL** | _Add after deploy:_ `https://<SERVICE>-<HASH>-<REGION>.run.app` |
+| **Local URL** | [http://localhost:3000](http://localhost:3000) |
+
+Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use `--max-instances=1` so in-memory scan → plan → execute → audit stays on one instance.
+
+### Real vs mocked
+
+| Capability | Status | Notes |
+|------------|--------|-------|
+| Synthetic local warehouse (Ana Reyes, 37 matches) | **IMPLEMENTED** | `src/lib/demo/seedData.ts` |
+| Scan → plan → approve → execute → audit UI | **IMPLEMENTED** | Human gate on execute |
+| Safety policy (payments retain-only, no table-wide) | **IMPLEMENTED** | `src/lib/execution/safetyPolicy.ts` |
+| Gemini planner + deterministic fallback | **IMPLEMENTED** | `src/lib/agent/consentPlanner.ts` |
+| Planner provenance badge (Gemini vs fallback) | **IMPLEMENTED** | Shown in cleanup plan panel + `POST /api/plan` |
+| `GET /api/status` + platform status card | **IMPLEMENTED** | No secrets in response |
+| Fivetran panel (read-only, redacted IDs) | **IMPLEMENTED** | Always mock adapter; credentials only change label |
+| `POST /api/agent/plan` (scan + plan only) | **IMPLEMENTED** | Rejects execution-shaped payloads |
+| OpenAPI agent spec | **IMPLEMENTED** | [docs/openapi/](docs/openapi/) |
+| Cloud Run + Docker image | **DOCUMENTED** | You deploy; URL above |
+| Secret Manager for Gemini key | **DOCUMENTED** | Not wired in code |
+| Fivetran MCP read-only evidence | **EXTERNAL/MANUAL** | [Template](docs/fivetran-mcp-evidence.md) — set `COMPLETED` or disclaim |
+| Real Fivetran REST status | **STUBBED** | `realFivetranAdapter.ts` |
+| Real BigQuery warehouse | **STUBBED** | `bigQueryWarehouse.ts` |
+| `DEMO_MODE` env-driven adapter switch | **PLANNED** | Flag documented; not read by app yet |
+| Durable workflow state | **PLANNED** | In-memory today |
+
+### Proof documents
+
+| Document | Purpose |
+|----------|---------|
+| [docs/platform-proof-plan.md](docs/platform-proof-plan.md) | Step-by-step submission checklist |
+| [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md) | Sanitized Fivetran MCP proof (required for partner track) |
+| [docs/openapi/README.md](docs/openapi/README.md) | Import `POST /api/agent/plan` as an agent tool |
+| [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) | Build, deploy, verify hosted demo |
+
+### Pre-submission gate
+
+Do not submit until:
+
+- [ ] Cloud Run URL works (or you honestly demo local only)
+- [ ] Gemini configured **or** deterministic fallback visible in UI
+- [ ] Fivetran MCP evidence completed **or** README states MCP proof is not completed
+- [ ] No secrets committed (`.env` stays local)
+- [ ] `npm run lint && npm run typecheck && npm test && npm run build` pass
 
 ---
 
@@ -222,6 +282,7 @@ Vitest covers safety-critical paths:
 - API key handling (header auth, redaction in errors)
 - Production placeholder stubs reject without leaking secrets
 - Demo workflow: scan → plan → execute → audit; stale audit cleared on new plan
+- Platform status, agent plan route, OpenAPI spec, Fivetran MCP evidence doc
 - Audit report honesty (live re-scan wording, blocked policies)
 
 ```bash

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { GET as getAuditRoute } from "@/app/api/audit/route";
+import { GET as getStatusRoute } from "@/app/api/status/route";
 import { POST as postExecuteRoute } from "@/app/api/execute/route";
 import { POST as postPlanRoute } from "@/app/api/plan/route";
 import { resetDemoWorkflowStateForTests } from "@/lib/demo/demoWorkflowState";
@@ -8,6 +9,23 @@ import { resetDemoWorkflowStateForTests } from "@/lib/demo/demoWorkflowState";
 describe("demo workflow routes", () => {
   beforeEach(() => {
     resetDemoWorkflowStateForTests();
+  });
+
+  it("GET /api/status returns non-sensitive platform summary", async () => {
+    const response = await getStatusRoute();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    expect(body.syntheticDataOnly).toBe(true);
+    expect(body.adapters.fivetranActive).toBe("mock");
+    expect(body.adapters.fivetranPanelMode).toBe("mock");
+    expect(body.adapters.warehouse).toBe("local_json");
+    expect(body.gemini).toEqual(
+      expect.objectContaining({
+        configured: expect.any(Boolean),
+      }),
+    );
+    expect(JSON.stringify(body)).not.toMatch(/GEMINI_API_KEY|FIVETRAN_API_SECRET/);
   });
 
   it("GET /api/audit before execution returns no_execution_yet", async () => {
@@ -38,6 +56,23 @@ describe("demo workflow routes", () => {
       error: "cleanup_plan_required",
       message: "Generate a cleanup plan before execution.",
     });
+  });
+
+  it("POST /api/plan returns planner provenance with the plan", async () => {
+    const response = await postPlanRoute(
+      new Request("http://localhost/api/plan", {
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.plan.totalMatchesBeforeCleanup).toBe(37);
+    expect(body.source).toBe("deterministic");
+    expect(Array.isArray(body.blockedActions)).toBe(true);
+    expect(body.blockedActions.length).toBeGreaterThan(0);
   });
 
   it("POST /api/plan rejects invalid payloads with 400", async () => {

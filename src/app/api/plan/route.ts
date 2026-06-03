@@ -59,8 +59,13 @@ export async function POST(request: Request) {
   try {
     const rawBody = await request.json().catch(() => ({}));
     const body = PlanRequestSchema.parse(rawBody);
-    const plan = await buildDemoPlan(body);
-    return NextResponse.json({ plan });
+    const result = await buildDemoPlan(body);
+    return NextResponse.json({
+      plan: result.plan,
+      source: result.source,
+      warning: result.warning,
+      blockedActions: result.blockedActions,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request payload", details: error.issues }, { status: 400 });

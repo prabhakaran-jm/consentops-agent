@@ -13,11 +13,16 @@ describe("demo workflow service", () => {
     resetDemoWorkflowStateForTests();
   });
 
-  it("scan returns subject, connectors, matches, spread map and beforeCount", async () => {
+  it("scan returns subject, fivetran status, matches, spread map and beforeCount", async () => {
     const result = await runDemoScan();
 
     expect(result.subject.fullName).toBe("Ana Reyes");
-    expect(result.connectors.length).toBeGreaterThan(0);
+    expect(result.fivetran.connectionCount).toBeGreaterThan(0);
+    expect(result.fivetran.mode).toBe("mock");
+    expect(result.fivetran.connectors.every((c) => c.displayKey.startsWith("connector_"))).toBe(
+      true,
+    );
+    expect(JSON.stringify(result.fivetran)).not.toContain("conn_zendesk_mock");
     expect(result.matches.length).toBe(37);
     expect(result.beforeCount).toBe(37);
     expect(result.spreadMap.crm_customers?.totalMatches).toBe(3);
@@ -28,14 +33,16 @@ describe("demo workflow service", () => {
     expect(audit).toBeNull();
   });
 
-  it("plan returns cleanup plan using defaults", async () => {
+  it("plan returns cleanup plan using defaults with planner provenance", async () => {
     const result = await buildDemoPlan();
-    expect(result.totalMatchesBeforeCleanup).toBe(37);
-    expect(result.actions.length).toBeGreaterThan(0);
+    expect(result.plan.totalMatchesBeforeCleanup).toBe(37);
+    expect(result.plan.actions.length).toBeGreaterThan(0);
+    expect(result.source).toBe("deterministic");
+    expect(result.blockedActions.length).toBeGreaterThan(0);
   });
 
   it("execute runs approved actions only and returns after count", async () => {
-    const plan = await buildDemoPlan();
+    const { plan } = await buildDemoPlan();
     const approved = plan.actions
       .filter((action) => action.classification === "delete")
       .slice(0, 2)
@@ -63,7 +70,7 @@ describe("demo workflow service", () => {
   });
 
   it("audit returns latest report", async () => {
-    const plan = await buildDemoPlan();
+    const { plan } = await buildDemoPlan();
     await executeDemoPlan({
       approvalId: "approval_demo_002",
       approvedActionIds: [plan.actions[0]!.id],
@@ -80,7 +87,7 @@ describe("demo workflow service", () => {
     const scan = await runDemoScan();
     expect(scan.beforeCount).toBe(37);
 
-    const plan = await buildDemoPlan();
+    const { plan } = await buildDemoPlan();
     const approvedActionIds = plan.actions.slice(0, 2).map((action) => action.id);
     const execution = await executeDemoPlan({
       approvalId: "approval_demo_flow",
@@ -97,7 +104,7 @@ describe("demo workflow service", () => {
     const firstPlan = await buildDemoPlan();
     await executeDemoPlan({
       approvalId: "approval_demo_stale_audit",
-      approvedActionIds: [firstPlan.actions[0]!.id],
+      approvedActionIds: [firstPlan.plan.actions[0]!.id],
     });
 
     const auditAfterExecute = await getLatestDemoAudit();

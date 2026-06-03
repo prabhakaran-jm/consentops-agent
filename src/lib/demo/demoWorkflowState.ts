@@ -1,4 +1,5 @@
 import type { ConsentOpsAuditReport } from "@/lib/audit/auditReport";
+import type { PlannerSource } from "@/lib/agent/consentPlanner";
 import { demoSubject, demoWarehouseTables } from "@/lib/demo/seedData";
 import type { CleanupPlan, ConsentSubject, WarehouseTable } from "@/lib/warehouse/types";
 
@@ -7,6 +8,8 @@ type DemoWorkflowState = {
   tables: WarehouseTable[];
   latestPlan: CleanupPlan | null;
   latestAudit: ConsentOpsAuditReport | null;
+  latestPlannerSource: PlannerSource | null;
+  latestPlannerWarning: string | null;
 };
 
 const cloneTables = (tables: WarehouseTable[]): WarehouseTable[] =>
@@ -20,6 +23,8 @@ const createInitialState = (): DemoWorkflowState => ({
   tables: cloneTables(demoWarehouseTables),
   latestPlan: null,
   latestAudit: null,
+  latestPlannerSource: null,
+  latestPlannerWarning: null,
 });
 
 const cloneAudit = (audit: ConsentOpsAuditReport): ConsentOpsAuditReport => ({
@@ -59,6 +64,8 @@ export const getDemoWorkflowState = (): DemoWorkflowState => ({
       }
     : null,
   latestAudit: state.latestAudit ? cloneAudit(state.latestAudit) : null,
+  latestPlannerSource: state.latestPlannerSource,
+  latestPlannerWarning: state.latestPlannerWarning,
 });
 
 export const updateDemoWorkflowState = (next: Partial<DemoWorkflowState>): void => {
