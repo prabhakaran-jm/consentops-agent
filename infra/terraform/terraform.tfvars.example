@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (gitignored) and fill in values.
+# Never commit terraform.tfvars or secret values.
+
+project_id      = "rapid-agent-hackathon-26"
+region          = "us-central1"
+service_name    = "consentops-agent"
+
+# Build and push first, then set this URI:
+# docker build -t REGION-docker.pkg.dev/PROJECT/consentops/consentops-agent:latest .
+# docker push REGION-docker.pkg.dev/PROJECT/consentops/consentops-agent:latest
+container_image = "us-central1-docker.pkg.dev/rapid-agent-hackathon-26/consentops/consentops-agent:latest"
+
+allow_unauthenticated   = true
+max_instances           = 1
+create_artifact_registry = true
+
+# Optional: create secret resource + mount GEMINI_API_KEY (add secret VALUE via gcloud after apply)
+enable_gemini_secret = false
+gemini_secret_id     = "GEMINI_API_KEY"
+gemini_model         = "gemini-2.0-flash"
