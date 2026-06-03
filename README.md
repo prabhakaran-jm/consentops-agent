@@ -1,12 +1,180 @@
 # ConsentOps Agent
 
-Hackathon demo for consent withdrawal workflows: discover synthetic PII across a warehouse, generate a classified cleanup plan, require **human approval**, execute approved actions only, re-scan to verify, and produce an audit report.
+**An operational agent that helps teams find, approve, execute, and document data cleanup steps — using synthetic demo data only.**
 
-**This is not production compliance software.** The default demo uses **synthetic local data only**. Do not use real personal data in the demo.
+ConsentOps is **not** a compliance guarantee. It is a human-in-the-loop workflow agent for consent-withdrawal operations: discover where a subject’s data landed, classify what to do with each record, wait for explicit approval, run only approved actions, re-scan to verify, and produce an audit trail.
 
-## Quick start
+---
+
+## The problem
+
+When someone withdraws consent, their data rarely lives in one table. It spreads across CRM, commerce, support, marketing, analytics, and payment systems synced into a warehouse. Teams must **find** every copy, **decide** what to delete vs. retain, **execute** safely, and **show** what happened — without accidental table-wide deletes or unapproved changes.
+
+Most tools stop at policy slides. ConsentOps models the full operational loop.
+
+---
+
+## What it does
+
+Given a consent withdrawal for a synthetic subject (Ana Reyes), ConsentOps:
+
+1. **Scans** a local warehouse across 7 tables and 37 matched records
+2. **Maps** where data spread (connectors, tables, confidence, sensitivity)
+3. **Plans** record-scoped cleanup actions — `delete`, `anonymize`, `retain`, or `review`
+4. **Blocks** unsafe suggestions (payment deletes, wildcards, missing retain reasons)
+5. **Requires human approval** before any destructive action runs
+6. **Executes** only explicitly approved actions
+7. **Re-scans** the warehouse (live verification, not self-reported counts)
+8. **Generates** a structured audit report (JSON + markdown)
+
+All demo data is fictional. **Do not use real personal data in this demo.**
+
+---
+
+## Why it is agentic
+
+ConsentOps is not a single API call — it orchestrates a multi-step workflow with guardrails:
+
+| Agent behavior | Implementation |
+|----------------|----------------|
+| **Discovery** | Cross-table scan with field-level matching and spread mapping |
+| **Reasoning** | Gemini planner (optional) or deterministic fallback classifies each record with explanations |
+| **Policy enforcement** | Safety layer rejects table-wide deletes, payment mutations, and unapproved actions |
+| **Human gate** | Execution blocked until a reviewer selects specific action IDs |
+| **Verification loop** | Post-cleanup re-scan compares before/after state |
+| **Audit narration** | Report summarizes connectors inspected, actions taken, and records remaining |
+
+The agent proposes and coordinates; **humans approve**. Nothing destructive runs on autopilot.
+
+---
+
+## Google Cloud usage
+
+| Service | Role in demo | Status |
+|---------|--------------|--------|
+| **Gemini** | Optional cleanup planning via `GEMINI_API_KEY`; deterministic fallback when absent or on failure | Implemented |
+| **Cloud Run** | Container deployment for hosted demos | Documented ([deployment guide](docs/cloud-run-deployment.md)) |
+| **BigQuery** | Production warehouse target for scan / dry-run / execute / verify | Stubbed (`bigQueryWarehouse.ts`) |
+| **Secret Manager** | Recommended for API keys in Cloud Run | Documented, not wired |
+
+The hackathon build runs locally on in-memory fixtures. Cloud Run deployment uses Docker + standalone Next.js output.
+
+---
+
+## Fivetran usage
+
+Fivetran is the **data movement layer** in the story: connectors sync operational sources (CRM, commerce, support, marketing) into the warehouse ConsentOps scans.
+
+| Capability | Demo | Production placeholder |
+|------------|------|------------------------|
+| List connectors | `MockFivetranAdapter` | `realFivetranAdapter.ts` |
+| Connector health & sync history | Mock narrative data | Stubbed REST calls |
+| Trigger verification sync | Mock queue response | Stubbed |
+
+Fivetran **moves data**; ConsentOps **governs cleanup**. The mock adapter simulates connector cards in the UI. The real adapter is intentionally stubbed — sync only, never cleanup.
+
+---
+
+## Safety model
+
+Designed so destructive work cannot run by accident:
+
+1. **Synthetic data only** — fictional personas in `src/lib/demo/seedData.ts`
+2. **Classified actions** — every record gets `delete` \| `anonymize` \| `retain` \| `review`; `retain` requires `retainReason`
+3. **Human approval required** — execution checks approval token + explicit action ID list
+4. **No table-wide deletion** — wildcards and empty record sets rejected
+5. **Payment records protected** — `payments_transactions` cannot be deleted or anonymized
+6. **Plan binding** — only actions from the generated plan may execute
+7. **Live verification** — post-cleanup re-scan; audit disclaimers (not legal advice)
+8. **Audit on success only** — ConsentOps generates an audit report only after successful approved execution
+9. **Gemini is advisory** — Gemini can propose a cleanup plan, but the plan must pass deterministic safety validation or ConsentOps falls back to the deterministic planner
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph UI["Dashboard (Next.js)"]
+    Scan[Scan data spread]
+    Plan[Generate cleanup plan]
+    Approve[Select & approve actions]
+    Execute[Execute approved cleanup]
+    Audit[View audit report]
+  end
+
+  subgraph API["API routes"]
+    RScan["/api/scan"]
+    RPlan["/api/plan"]
+    RExec["/api/execute"]
+    RAudit["/api/audit"]
+  end
+
+  subgraph Agent["Planning agent"]
+    Gemini[Gemini planner]
+    Det[Deterministic fallback]
+    Gemini -->|fail / invalid| Det
+  end
+
+  subgraph Data["Data layer"]
+    WH[(Local JSON warehouse)]
+    FT[Fivetran mock adapter]
+  end
+
+  subgraph Safety["Safety & execution"]
+    Policy[Safety policy]
+    Exec[Cleanup executor]
+    Verify[Live re-scan]
+  end
+
+  Scan --> RScan --> WH
+  RScan --> FT
+  Plan --> RPlan --> Agent
+  RPlan --> WH
+  Approve --> RExec
+  RExec --> Policy --> Exec --> WH
+  Exec --> Verify --> WH
+  Execute --> RAudit
+  RAudit --> Audit
+```
+
+---
+
+## Demo flow
+
+```
+Consent withdrawal (Ana Reyes)
+        │
+        ▼
+   Scan warehouse ──► 37 matches across 7 tables + Fivetran connector status
+        │
+        ▼
+   Generate plan ──► Classified actions (delete / anonymize / retain / review)
+        │
+        ▼
+   Human approval ──► Reviewer selects specific action IDs
+        │
+        ▼
+   Execute ──► Safety policy gates → approved actions only
+        │
+        ▼
+   Live re-scan ──► Remaining matches counted from warehouse, not fixtures
+        │
+        ▼
+   Audit report ──► Connectors, actions, before/after, disclaimers
+```
+
+**Try it:** Scan → Generate cleanup plan → Select actions → Execute approved cleanup → View audit report.
+
+Before execution, the audit panel shows **No execution yet.** Generating a new plan also clears stale audit state.
+
+---
+
+## Local setup
 
 ```bash
+git clone <repo-url>
+cd ConsentOps-Agent
 npm install
 cp .env.example .env.local
 npm run dev
@@ -15,98 +183,74 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
-npm run test      # Vitest
+npm run test        # Vitest — 87 safety and workflow tests
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-**Deployment:** see [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) for Docker and Cloud Run demo deployment.
+**Deployment:** [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) — Docker + Cloud Run with `--max-instances=1` for judged demos.
 
-## Operating modes
-
-### Mock demo mode (default)
-
-The hackathon demo runs entirely on **synthetic local JSON fixtures** in `src/lib/demo/seedData.ts`.
-
-- **Warehouse:** `scanSubjectAcrossWarehouse` in `src/lib/warehouse/localWarehouse.ts`
-- **Connectors:** `MockFivetranAdapter` in `src/lib/connectors/mockFivetranAdapter.ts`
-- **Planning:** deterministic planner, or Gemini when `GEMINI_API_KEY` is set (with deterministic fallback)
-- **Execution:** in-memory cleanup on local tables with safety policy gates
-
-`DEMO_MODE=true` documents the intended demo configuration. The app **already** runs only on synthetic local demo data today. `DEMO_MODE` / `CONSENTOPS_DEMO_MODE` are reserved for future environment-based adapter switching; they do **not** currently restrict operations or enforce a subject allowlist in code.
-
-### Real Fivetran mode (placeholder)
-
-Production connector integration is **intentionally stubbed** in `src/lib/connectors/realFivetranAdapter.ts`.
-
-When `FIVETRAN_API_KEY` and `FIVETRAN_API_SECRET` are present, the adapter validates configuration but methods throw until implemented:
-
-| Method | Purpose |
-|--------|---------|
-| `listConnectors` | List synced connectors |
-| `getConnectorStatus` | Health and last sync for one connector |
-| `getRecentSyncs` | Recent sync history |
-| `triggerSync` | Queue a verification sync (no cleanup) |
-
-The demo UI and workflow continue to use `MockFivetranAdapter` until a factory wires the real adapter.
-
-### Real BigQuery mode (placeholder)
-
-Production warehouse integration is **intentionally stubbed** in `src/lib/warehouse/bigQueryWarehouse.ts`.
-
-When `GOOGLE_CLOUD_PROJECT` and `BIGQUERY_DATASET` are set, the adapter validates configuration but methods throw until implemented:
-
-| Method | Purpose |
-|--------|---------|
-| `scanSubject` | Discover subject matches across warehouse tables |
-| `dryRunCleanup` | Estimate impact of planned actions (no writes) |
-| `executeApprovedCleanup` | Run DML for **explicitly approved** actions only |
-| `verifyCleanup` | Re-scan after execution |
-
-Authenticate with Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS` when implementing the TODOs.
+---
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local`. All keys are optional for the default demo.
+Copy `.env.example` to `.env.local`. All keys optional for the default demo.
 
-| Variable | Used for |
-|----------|----------|
-| `DEMO_MODE` | Documents intended demo mode (`true` recommended); not read by app code yet |
-| `CONSENTOPS_DEMO_MODE` | Same reserved flag as `DEMO_MODE` (project rules reference this name) |
-| `GEMINI_API_KEY` | Optional Gemini planning (omit for deterministic planner) |
+| Variable | Purpose |
+|----------|---------|
+| `DEMO_MODE` | Documents intended demo config (not read by app code yet) |
+| `CONSENTOPS_DEMO_MODE` | Same reserved flag |
+| `GEMINI_API_KEY` | Optional Gemini planning; omit for deterministic planner |
 | `GEMINI_MODEL` | Gemini model id (default `gemini-2.0-flash`) |
-| `FIVETRAN_API_KEY` | Real Fivetran adapter (placeholder) |
-| `FIVETRAN_API_SECRET` | Real Fivetran adapter (placeholder) |
-| `GOOGLE_CLOUD_PROJECT` | BigQuery project id (placeholder) |
-| `BIGQUERY_DATASET` | BigQuery dataset for warehouse tables (placeholder) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path for BigQuery (when implementing) |
+| `FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET` | Real Fivetran adapter (stubbed) |
+| `GOOGLE_CLOUD_PROJECT` / `BIGQUERY_DATASET` | BigQuery adapter (stubbed) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Service account for BigQuery (when implemented) |
 
-## Safety model
+API keys are sent via `x-goog-api-key` header, never in URLs.
 
-ConsentOps is designed so destructive work cannot run by accident:
+---
 
-1. **Synthetic demo data only** — fictional personas in fixtures; never ingest real PII into the demo.
-2. **Classified actions** — every cleanup action is `delete`, `anonymize`, `retain`, or `review`; `retain` requires `retainReason`.
-3. **Human approval required** — execution checks an approval token and an explicit list of approved action IDs.
-4. **No table-wide deletion** — wildcards and empty record sets are rejected.
-5. **Payment records protected** — `payments_transactions` cannot be deleted or anonymized in the demo policy.
-6. **Plan binding** — only actions from the generated plan may execute.
-7. **Verification** — post-cleanup re-scan; audit report includes disclaimers (not legal advice).
+## Testing
 
-Production adapters (`realFivetranAdapter`, `bigQueryWarehouse`) must preserve these gates when implemented.
+Vitest covers safety-critical paths:
 
-## Project layout
+- Classification validation and `retain` + reason enforcement
+- Approval gate before execution
+- Rejection of table-wide / wildcard / payment delete actions
+- Gemini plan validation with deterministic fallback
+- API key handling (header auth, redaction in errors)
+- Production placeholder stubs reject without leaking secrets
+- Demo workflow: scan → plan → execute → audit; stale audit cleared on new plan
+- Audit report honesty (live re-scan wording, blocked policies)
 
+```bash
+npm test
 ```
-src/lib/demo/          Demo workflow state and seed fixtures
-src/lib/warehouse/     Local scanner + BigQuery placeholder
-src/lib/connectors/    Mock + real Fivetran placeholders
-src/lib/agent/         Gemini client + consent planner
-src/lib/execution/     Safety policy + cleanup executor
-src/lib/audit/         Audit report generation
-src/app/api/           scan, plan, execute, audit routes
-```
+
+---
+
+## Known limitations
+
+- **In-memory state** — demo workflow resets on cold start / redeploy; not suitable for multi-user production without durable storage
+- **Synthetic fixtures only** — Ana Reyes persona in local JSON; no real warehouse connection in the default demo
+- **Stubbed production adapters** — real Fivetran and BigQuery integrations are placeholders with TODOs
+- **Single-instance demo** — Cloud Run should use `--max-instances=1` so the workflow stays on one container
+- **Not legal advice** — audit reports include disclaimers; does not certify GDPR or regulatory compliance
+- **`DEMO_MODE` env flag** — documented but not yet wired to runtime adapter switching
+
+---
+
+## Future work
+
+- Wire `realFivetranAdapter` to Fivetran REST API for live connector status
+- Implement `BigQueryWarehouseAdapter` with parameterized, record-scoped DML
+- Durable workflow state (Firestore / Cloud SQL) for multi-session demos
+- Secret Manager integration for Cloud Run deployments
+- Subject allowlist enforcement when `DEMO_MODE` is wired
+- Multi-tenant isolation and auth for production pilots
+
+---
 
 ## License
 
