@@ -13,19 +13,19 @@ describe("README platform proof section", () => {
     expect(raw).toMatch(/### Real vs mocked/);
     expect(raw).toMatch(/\*\*IMPLEMENTED\*\*/);
     expect(raw).toMatch(/\*\*PLANNED\*\*/);
-    expect(raw).toMatch(/\*\*EXTERNAL\/MANUAL\*\*/);
+    expect(raw).toMatch(/\*\*DOCUMENTED\*\*/);
   });
 
-  it("links to proof documents without claiming MCP is completed", () => {
+  it("links to proof documents with MCP evidence reference", () => {
     expect(raw).toContain("docs/platform-proof-plan.md");
     expect(raw).toContain("docs/fivetran-mcp-evidence.md");
     expect(raw).toContain("docs/openapi/");
-    expect(raw).toMatch(/COMPLETED.*or.*disclaim/i);
+    expect(raw).toMatch(/evidence COMPLETED|FIVETRAN_MCP_RUNTIME/i);
   });
 
-  it("includes hosted URL placeholder and pre-submission gate", () => {
+  it("includes hosted URL and pre-submission gate", () => {
     expect(raw).toMatch(/Cloud Run URL/);
-    expect(raw).toMatch(/YOUR_CLOUD_RUN_URL|Add after deploy/i);
+    expect(raw).toMatch(/YOUR_CLOUD_RUN_URL|Add after deploy|\.run\.app/i);
     expect(raw).toMatch(/Pre-submission gate/);
     expect(raw).not.toMatch(/GEMINI_API_KEY=AIza/);
   });

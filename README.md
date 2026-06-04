@@ -18,7 +18,7 @@ Most tools stop at policy slides. ConsentOps models the full operational loop.
 
 Given a consent withdrawal for a synthetic subject (Ana Reyes), ConsentOps:
 
-1. **Scans** a local warehouse across 7 tables and 37 matched records
+1. **Scans** the demo warehouse (local JSON or BigQuery when configured) across 7 tables — typically **37** matches for Ana Reyes
 2. **Maps** where data spread (connectors, tables, confidence, sensitivity)
 3. **Plans** record-scoped cleanup actions — `delete`, `anonymize`, `retain`, or `review`
 4. **Blocks** unsafe suggestions (payment deletes, wildcards, missing retain reasons)
@@ -63,18 +63,23 @@ The hackathon build runs locally on in-memory fixtures. Cloud Run deployment use
 
 ---
 
-## Fivetran usage
+## Fivetran usage (partner track)
 
-Fivetran is the **data movement layer** in the story: connectors sync operational sources (CRM, commerce, support, marketing) into the warehouse ConsentOps scans.
+Fivetran is the **data movement layer**: connectors sync into BigQuery; ConsentOps scans the demo warehouse and runs **approval-gated** cleanup.
 
-| Capability | Demo | Production placeholder |
-|------------|------|------------------------|
-| List connectors | `MockFivetranAdapter` when no credentials | `RealFivetranAdapter` read-only REST when credentials set |
-| Connector health & sync history | Live REST or mock; redacted IDs in UI (`connector_01`, …) | Read-only metadata |
-| Trigger verification sync | Mock queue response only | **Disabled** on live REST adapter |
-| MCP read-only evidence | [Template doc](docs/fivetran-mcp-evidence.md) | EXTERNAL/MANUAL — you complete |
+**Primary integration (Option 1):** [Fivetran MCP](https://github.com/fivetran/fivetran-mcp) in read-only mode (`FIVETRAN_ALLOW_WRITES=false`). With `FIVETRAN_MCP_RUNTIME=true`, the app calls `list_connections` via MCP at runtime (requires [uv](https://docs.astral.sh/uv/) locally); falls back to REST on failure. Evidence: [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md).
 
-Fivetran **moves data**; ConsentOps **governs cleanup**. With credentials, the panel loads live read-only connector status via REST. `triggerSync` is never enabled on the live adapter.
+**Secondary (Option 2):** read-only **REST** mirror in the web UI when MCP runtime is off or unavailable on Cloud Run; `triggerSync` is disabled.
+
+**Gemini model:** Hackathon copy references Gemini 3; this repo defaults to `gemini-2.5-flash` (configurable via `GEMINI_MODEL`). Not a compliance or version guarantee.
+
+| Capability | Demo |
+|------------|------|
+| Fivetran MCP (primary) | [Evidence doc](docs/fivetran-mcp-evidence.md) + optional `FIVETRAN_MCP_RUNTIME=true` |
+| Connector panel (REST mirror) | `MockFivetranAdapter` without credentials; `RealFivetranAdapter` live read-only REST |
+| Trigger sync | **Never** on live REST; **never** via MCP in read-only mode |
+
+Fivetran **moves data**; ConsentOps **governs cleanup** on synthetic fixtures (BigQuery when `CONSENTOPS_WAREHOUSE_MODE=bigquery_full`).
 
 ---
 
@@ -206,10 +211,12 @@ ConsentOps is an **operational agent**, not a compliance guarantee. This section
 
 | Field | Value |
 |-------|-------|
-| **Cloud Run URL** | _Add after deploy:_ `https://<SERVICE>-<HASH>-<REGION>.run.app` |
+| **Cloud Run URL** | https://consentops-agent-538209538110.us-central1.run.app |
 | **Local URL** | [http://localhost:3000](http://localhost:3000) |
 
 Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use `--max-instances=1` so in-memory scan → plan → execute → audit stays on one instance.
+
+**Dashboard screenshots** for judges: attach platform status + Fivetran panel + audit to Devpost, or see [docs/screenshots/README.md](docs/screenshots/README.md).
 
 ### Real vs mocked
 
@@ -221,13 +228,13 @@ Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use 
 | Gemini planner + deterministic fallback | **IMPLEMENTED** | `src/lib/agent/consentPlanner.ts` |
 | Planner provenance badge (Gemini vs fallback) | **IMPLEMENTED** | Shown in cleanup plan panel + `POST /api/plan` |
 | `GET /api/status` + platform status card | **IMPLEMENTED** | No secrets in response |
-| Fivetran panel (read-only, redacted IDs) | **IMPLEMENTED** | Mock without credentials; live REST when configured |
+| Fivetran MCP (Option 1, primary) | **IMPLEMENTED** | Cursor evidence doc + optional `FIVETRAN_MCP_RUNTIME=true` (`list_connections` via MCP; REST fallback) |
+| Fivetran REST panel (Option 2, UI mirror) | **IMPLEMENTED** | Mock without credentials; live REST when configured |
 | `POST /api/agent/plan` (scan + plan only) | **IMPLEMENTED** | Rejects execution-shaped payloads |
 | OpenAPI agent spec | **IMPLEMENTED** | [docs/openapi/](docs/openapi/) |
-| Cloud Run + Docker image | **DOCUMENTED** | You deploy; URL above |
+| Cloud Run + Docker image | **IMPLEMENTED** | https://consentops-agent-538209538110.us-central1.run.app |
 | Secret Manager for Gemini key | **DOCUMENTED** | Not wired in code |
-| Fivetran MCP read-only evidence | **EXTERNAL/MANUAL** | [Template](docs/fivetran-mcp-evidence.md) — set `COMPLETED` or disclaim |
-| Real Fivetran REST status | **IMPLEMENTED** | Read-only `GET /v1/connections`; `triggerSync` disabled |
+| Real Fivetran REST status (secondary) | **IMPLEMENTED** | Read-only `GET /v1/connections`; mirrors MCP story in UI |
 | BigQuery warehouse | **IMPLEMENTED** | Modes: `local_json`, `bigquery_scan`, `bigquery_full` via `CONSENTOPS_WAREHOUSE_MODE` |
 | Fivetran + BigQuery demo | **DOCUMENTED** | [fivetran-bigquery-demo.md](docs/fivetran-bigquery-demo.md) — live connectors + `bigquery_full` cleanup |
 | `DEMO_MODE` env-driven adapter switch | **PLANNED** | Flag documented; not read by app yet |
@@ -238,21 +245,21 @@ Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use 
 | Document | Purpose |
 |----------|---------|
 | [docs/platform-proof-plan.md](docs/platform-proof-plan.md) | Step-by-step submission checklist |
-| [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md) | Sanitized Fivetran MCP proof (required for partner track) |
+| [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md) | **Primary** Fivetran integration (Option 1 MCP, read-only) |
 | [docs/openapi/README.md](docs/openapi/README.md) | Import `POST /api/agent/plan` as an agent tool |
 | [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) | Build, deploy, verify hosted demo |
 | [docs/bigquery-demo-setup.md](docs/bigquery-demo-setup.md) | `npm run bigquery:setup` — load synthetic Ana Reyes tables into BigQuery |
 | [infra/terraform/README.md](infra/terraform/README.md) | Terraform IaC for Cloud Run |
-| [docs/demo-video-script.md](docs/demo-video-script.md) | ~2 min judging video beat sheet |
+| [docs/demo-video-script.md](docs/demo-video-script.md) | ~3 min judging video beat sheet |
 | [docs/devpost-submission.md](docs/devpost-submission.md) | Devpost copy blocks |
 
 ### Pre-submission gate
 
 Do not submit until:
 
-- [ ] Cloud Run URL works (or you honestly demo local only)
-- [ ] Gemini configured **or** deterministic fallback visible in UI
-- [ ] Fivetran MCP evidence completed **or** README states MCP proof is not completed
+- [x] Cloud Run URL works — https://consentops-agent-538209538110.us-central1.run.app
+- [ ] Demo video recorded and linked in Devpost (~3 min; [demo-video-script.md](docs/demo-video-script.md))
+- [x] Fivetran MCP (primary) evidence COMPLETED in [fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md)
 - [ ] No secrets committed (`.env` stays local)
 - [ ] `npm run lint && npm run typecheck && npm test && npm run build` pass
 
@@ -268,7 +275,9 @@ Copy `.env.example` to `.env.local`. All keys optional for the default demo.
 | `GEMINI_API_KEY` | Optional Gemini planning; omit for deterministic planner |
 | `GEMINI_MODEL` | Gemini model id (default `gemini-2.5-flash`) |
 | `CONSENTOPS_WAREHOUSE_MODE` | `local_json` (default), `bigquery_scan`, or `bigquery_full` |
-| `FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET` | Live read-only Fivetran REST panel |
+| `FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET` | Same key for MCP and REST |
+| `FIVETRAN_MCP_RUNTIME` | `true` to load connectors via Fivetran MCP at runtime (local dev; REST fallback) |
+| `FIVETRAN_ALLOW_WRITES` | Must be `false` for MCP runtime (read-only) |
 | `GOOGLE_CLOUD_PROJECT` / `BIGQUERY_DATASET` | BigQuery warehouse adapter |
 | `GOOGLE_APPLICATION_CREDENTIALS` | ADC for BigQuery locally (Cloud Run uses service account) |
 

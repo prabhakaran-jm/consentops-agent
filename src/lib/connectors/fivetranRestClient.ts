@@ -1,4 +1,4 @@
-import type { FivetranConnectorHealth } from "@/lib/connectors/fivetranAdapter";
+import type { FivetranConnector, FivetranConnectorHealth } from "@/lib/connectors/fivetranAdapter";
 import type { WarehouseTableName } from "@/lib/warehouse/types";
 
 export const FIVETRAN_API_BASE = "https://api.fivetran.com/v1";
@@ -57,6 +57,39 @@ export const inferConnectorHealth = (item: FivetranConnectionApiItem): FivetranC
   }
 
   return "healthy";
+};
+
+const connectionLabel = (item: FivetranConnectionApiItem): string => {
+  const service = item.service ?? "connector";
+  const schema = item.schema ?? "destination";
+  return `${service} → ${schema}`;
+};
+
+export const mapFivetranConnectionItem = (
+  item: FivetranConnectionApiItem,
+  description = "Live read-only status from Fivetran. No sync or cleanup performed.",
+): FivetranConnector => {
+  const service = item.service ?? "unknown";
+  const lastSyncedAtIso =
+    item.succeeded_at ?? item.failed_at ?? item.created_at ?? new Date(0).toISOString();
+
+  return {
+    id: item.id,
+    name: connectionLabel(item),
+    description,
+    source: service,
+    destination: item.schema ?? "warehouse",
+    health: inferConnectorHealth(item),
+    lastSyncedAtIso,
+    lastSyncStatus: inferLastSyncStatus(item),
+    mappedTables: inferMappedTables(service),
+  };
+};
+
+export const parseFivetranConnectionItems = (payload: unknown): FivetranConnectionApiItem[] => {
+  if (!payload || typeof payload !== "object") return [];
+  const data = (payload as FivetranListConnectionsResponse).data;
+  return data?.items ?? [];
 };
 
 export const inferLastSyncStatus = (item: FivetranConnectionApiItem): "success" | "failed" => {

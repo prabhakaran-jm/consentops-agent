@@ -69,7 +69,9 @@ export const buildFivetranConnectorPanelData = (
   readOnlyNote: FIVETRAN_READ_ONLY_NOTE,
   connectionCount: connectors.length,
   emptyConnectionsHint:
-    mode === "live_read_only" && connectors.length === 0 ? LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT : null,
+    (mode === "live_read_only" || mode === "mcp_runtime") && connectors.length === 0
+      ? LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT
+      : null,
   healthSummary: summarizeHealth(connectors),
   connectors: toRedactedPanelItems(connectors),
 });

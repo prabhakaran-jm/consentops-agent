@@ -6,10 +6,8 @@ import type {
 } from "@/lib/connectors/fivetranAdapter";
 import {
   createFivetranHttpClient,
-  inferConnectorHealth,
-  inferLastSyncStatus,
-  inferMappedTables,
-  type FivetranConnectionApiItem,
+  mapFivetranConnectionItem,
+  parseFivetranConnectionItems,
   type FivetranHttpClient,
   type FivetranListConnectionsResponse,
 } from "@/lib/connectors/fivetranRestClient";
@@ -33,30 +31,6 @@ export const getRealFivetranConfigFromEnv = (): RealFivetranConfig | null => {
   return { apiKey, apiSecret };
 };
 
-const connectionLabel = (item: FivetranConnectionApiItem): string => {
-  const service = item.service ?? "connector";
-  const schema = item.schema ?? "destination";
-  return `${service} → ${schema}`;
-};
-
-const mapConnection = (item: FivetranConnectionApiItem): FivetranConnector => {
-  const service = item.service ?? "unknown";
-  const lastSyncedAtIso =
-    item.succeeded_at ?? item.failed_at ?? item.created_at ?? new Date(0).toISOString();
-
-  return {
-    id: item.id,
-    name: connectionLabel(item),
-    description: "Live read-only status from Fivetran REST API. No sync or cleanup performed.",
-    source: service,
-    destination: item.schema ?? "warehouse",
-    health: inferConnectorHealth(item),
-    lastSyncedAtIso,
-    lastSyncStatus: inferLastSyncStatus(item),
-    mappedTables: inferMappedTables(service),
-  };
-};
-
 export class RealFivetranAdapter implements FivetranAdapter {
   private readonly client: FivetranHttpClient;
 
@@ -78,20 +52,24 @@ export class RealFivetranAdapter implements FivetranAdapter {
     }
   }
 
-  private async listConnectionItems(): Promise<FivetranConnectionApiItem[]> {
+  private async listConnectionItems(): Promise<ReturnType<typeof parseFivetranConnectionItems>> {
     const payload = (await this.client.get("/connections?limit=100")) as FivetranListConnectionsResponse;
-    const items = payload.data?.items ?? [];
+    const items = parseFivetranConnectionItems(payload);
     if (items.length > 0) return items;
 
-    // Legacy fallback for accounts still on /connectors.
     const legacy = (await this.client.get("/connectors?limit=100")) as FivetranListConnectionsResponse;
-    return legacy.data?.items ?? [];
+    return parseFivetranConnectionItems(legacy);
   }
 
   async listConnectors(): Promise<FivetranConnector[]> {
     this.assertConfigured();
     const items = await this.listConnectionItems();
-    return items.map(mapConnection);
+    return items.map((item) =>
+      mapFivetranConnectionItem(
+        item,
+        "Live read-only status from Fivetran REST API. No sync or cleanup performed.",
+      ),
+    );
   }
 
   async getConnectorStatus(connectorId: string): Promise<FivetranConnector> {
@@ -121,7 +99,8 @@ export class RealFivetranAdapter implements FivetranAdapter {
     ];
   }
 
-  async triggerSync(_connectorId: string): Promise<TriggerSyncResult> {
+  async triggerSync(connectorId: string): Promise<TriggerSyncResult> {
+    void connectorId;
     this.assertConfigured();
     throw new ReadOnlyFivetranError(
       "RealFivetranAdapter is read-only; triggerSync is disabled in the ConsentOps demo.",

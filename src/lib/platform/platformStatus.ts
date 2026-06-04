@@ -2,7 +2,9 @@ import { getGeminiConfigFromEnv } from "@/lib/agent/geminiClient";
 import type { PlannerSource } from "@/lib/agent/consentPlanner";
 import {
   getFivetranActiveMode,
+  getFivetranIntegrationSource,
   getFivetranPanelMode,
+  type FivetranIntegrationSource,
   type FivetranPanelMode,
 } from "@/lib/connectors/fivetranAdapterFactory";
 import { getRealFivetranConfigFromEnv } from "@/lib/connectors/realFivetranAdapter";
@@ -36,8 +38,10 @@ export type PlatformStatus = {
     bigQueryConfigured: boolean;
     bigQueryProjectId: string | null;
     bigQueryDataset: string | null;
-    fivetranActive: "mock" | "live_read_only";
+    fivetranActive: "mock" | "live_read_only" | "mcp_runtime";
     fivetranPanelMode: FivetranPanelMode;
+    fivetranIntegrationSource: FivetranIntegrationSource;
+    fivetranMcpRuntimeEnabled: boolean;
     fivetranRealConfigured: boolean;
   };
   workflow: {
@@ -89,6 +93,8 @@ export const getPlatformStatus = (): PlatformStatus => {
       bigQueryDataset: bigQueryConfig?.dataset ?? null,
       fivetranActive: getFivetranActiveMode(),
       fivetranPanelMode: getFivetranPanelMode(),
+      fivetranIntegrationSource: getFivetranIntegrationSource(),
+      fivetranMcpRuntimeEnabled: getFivetranIntegrationSource() === "mcp_runtime",
       fivetranRealConfigured: getRealFivetranConfigFromEnv() !== null,
     },
     workflow: {

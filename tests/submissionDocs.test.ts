@@ -20,6 +20,7 @@ describe("submission docs", () => {
     expect(devpost).toMatch(/Synthetic demo data only/i);
     expect(devpost).toMatch(/human approval/i);
     expect(devpost).toMatch(/fivetran-mcp-evidence/i);
+    expect(devpost).toMatch(/Option 1 MCP.*primary/i);
   });
 
   it("cloud run doc includes Secret Manager checklist", () => {

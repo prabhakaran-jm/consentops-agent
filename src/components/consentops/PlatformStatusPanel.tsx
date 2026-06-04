@@ -34,7 +34,10 @@ export function PlatformStatusPanel({ status, loading }: Props) {
             ) : (
               <Badge tone="neutral">Gemini not configured</Badge>
             )}
-            <Badge tone="neutral">Fivetran: {status.adapters.fivetranActive}</Badge>
+            <Badge tone="neutral">Fivetran: {status.adapters.fivetranIntegrationSource}</Badge>
+            {status.adapters.fivetranMcpRuntimeEnabled ? (
+              <Badge tone="info">MCP runtime</Badge>
+            ) : null}
             <Badge tone="neutral">Warehouse: {status.adapters.warehouse}</Badge>
             <Badge tone="neutral">Scan: {status.adapters.warehouseScanSource}</Badge>
             <Badge tone="neutral">Execute: {status.adapters.warehouseExecution}</Badge>

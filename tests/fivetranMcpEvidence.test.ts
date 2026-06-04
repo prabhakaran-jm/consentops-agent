@@ -8,15 +8,17 @@ const evidencePath = resolve(process.cwd(), "docs/fivetran-mcp-evidence.md");
 describe("fivetran MCP evidence doc", () => {
   const raw = readFileSync(evidencePath, "utf8");
 
-  it("includes read-only banner and template status", () => {
+  it("declares MCP primary integration and read-only mode", () => {
     expect(raw).toMatch(/Read-only MCP evidence/i);
     expect(raw).toMatch(/No sync, write, or cleanup was performed via Fivetran MCP/i);
-    expect(raw).toMatch(/Evidence status.*TEMPLATE/i);
+    expect(raw).toMatch(/Option 1.*MCP.*primary/i);
+    expect(raw).toMatch(/FIVETRAN_ALLOW_WRITES=false/i);
+    expect(raw).toMatch(/Evidence status.*COMPLETED/i);
   });
 
   it("uses sanitized aliases only in the placeholder table", () => {
     expect(raw).toContain("connector_A");
-    expect(raw).toContain("destination_1");
+    expect(raw).toContain("destination_01");
     expect(raw).not.toMatch(/conn_google_sheets_crm/);
     expect(raw).not.toMatch(/conn_zendesk_mock/);
   });

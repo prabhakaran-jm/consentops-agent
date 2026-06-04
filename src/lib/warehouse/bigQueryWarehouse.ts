@@ -1,6 +1,5 @@
 import {
   createMatchedRecordIdSet,
-  createRecordIdSet,
   validateCleanupActionSafety,
   type ExecutionApproval,
 } from "@/lib/execution/safetyPolicy";
@@ -14,13 +13,11 @@ import { assertDemoSubjectAllowed } from "@/lib/warehouse/demoModeGuard";
 import { getMatchedFields, inferConfidence, inferSensitivity } from "@/lib/warehouse/matchEngine";
 import { WAREHOUSE_TABLE_NAMES } from "@/lib/warehouse/warehouseConfig";
 import type {
-  CleanupAction,
   CleanupPlan,
   ConsentSubject,
   DataMatch,
   MatchField,
   WarehouseRecord,
-  WarehouseTable,
   WarehouseTableName,
 } from "@/lib/warehouse/types";
 

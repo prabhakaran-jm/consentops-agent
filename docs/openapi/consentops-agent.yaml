@@ -17,8 +17,8 @@ info:
 servers:
   - url: http://localhost:3000
     description: Local development
-  - url: https://YOUR_CLOUD_RUN_URL
-    description: Replace with your deployed Cloud Run service URL
+  - url: https://consentops-agent-538209538110.us-central1.run.app
+    description: Hosted Cloud Run demo (REST Fivetran mirror; MCP runtime local-only)
 
 paths:
   /api/agent/plan:
