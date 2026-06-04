@@ -67,11 +67,11 @@ The hackathon build runs locally on in-memory fixtures. Cloud Run deployment use
 
 Fivetran is the **data movement layer**: connectors sync into BigQuery; ConsentOps scans the demo warehouse and runs **approval-gated** cleanup.
 
-**Primary integration (Option 1):** [Fivetran MCP](https://github.com/fivetran/fivetran-mcp) in read-only mode (`FIVETRAN_ALLOW_WRITES=false`). With `FIVETRAN_MCP_RUNTIME=true`, the app calls `list_connections` via MCP at runtime (requires [uv](https://docs.astral.sh/uv/) locally); falls back to REST on failure. Evidence: [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md).
+**Primary integration (Option 1):** [Fivetran MCP](https://github.com/fivetran/fivetran-mcp) in read-only mode (`FIVETRAN_ALLOW_WRITES=false`). With `FIVETRAN_MCP_RUNTIME=true`, the app calls `list_connections` via MCP at runtime (local dev or Cloud Run — the Docker image includes `uv`); falls back to REST on failure. Evidence: [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md).
 
-**Secondary (Option 2):** read-only **REST** mirror in the web UI when MCP runtime is off or unavailable on Cloud Run; `triggerSync` is disabled.
+**Secondary (Option 2):** read-only **REST** mirror when MCP runtime is off or MCP spawn fails; `triggerSync` is disabled.
 
-**Gemini model:** Hackathon copy references Gemini 3; this repo defaults to `gemini-2.5-flash` (configurable via `GEMINI_MODEL`). Not a compliance or version guarantee.
+**Gemini model:** defaults to `gemini-3.5-flash` (Gemini 3 family; override via `GEMINI_MODEL`).
 
 | Capability | Demo |
 |------------|------|
@@ -273,10 +273,10 @@ Copy `.env.example` to `.env.local`. All keys optional for the default demo.
 |----------|---------|
 | `DEMO_MODE` / `CONSENTOPS_DEMO_MODE` | When true, warehouse ops restricted to synthetic subject allowlist |
 | `GEMINI_API_KEY` | Optional Gemini planning; omit for deterministic planner |
-| `GEMINI_MODEL` | Gemini model id (default `gemini-2.5-flash`) |
+| `GEMINI_MODEL` | Gemini model id (default `gemini-3.5-flash`) |
 | `CONSENTOPS_WAREHOUSE_MODE` | `local_json` (default), `bigquery_scan`, or `bigquery_full` |
 | `FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET` | Same key for MCP and REST |
-| `FIVETRAN_MCP_RUNTIME` | `true` to load connectors via Fivetran MCP at runtime (local dev; REST fallback) |
+| `FIVETRAN_MCP_RUNTIME` | `true` to load connectors via Fivetran MCP at runtime (Cloud Run image includes `uv`; REST fallback) |
 | `FIVETRAN_ALLOW_WRITES` | Must be `false` for MCP runtime (read-only) |
 | `GOOGLE_CLOUD_PROJECT` / `BIGQUERY_DATASET` | BigQuery warehouse adapter |
 | `GOOGLE_APPLICATION_CREDENTIALS` | ADC for BigQuery locally (Cloud Run uses service account) |

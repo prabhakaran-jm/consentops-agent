@@ -44,7 +44,7 @@ Optional runtime variables (omit for deterministic planning and mock adapters):
 docker run --rm -p 8080:8080 \
   -e DEMO_MODE=true \
   -e CONSENTOPS_DEMO_MODE=true \
-  -e GEMINI_MODEL=gemini-2.5-flash \
+  -e GEMINI_MODEL=gemini-3.5-flash \
   consentops-agent:local
 ```
 
@@ -107,18 +107,51 @@ terraform apply
 
 Outputs include `cloud_run_url`. Defaults include `max_instances = 1` and optional `enable_gemini_secret` in tfvars. Secret **values** are added with `gcloud`, not committed to git.
 
-## Environment variables
+For the **full hackathon demo** (live Fivetran REST + BigQuery `bigquery_full`), also set:
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `CONSENTOPS_WAREHOUSE_MODE` | `bigquery_full` | Scan, execute, verify on BigQuery |
+| `GOOGLE_CLOUD_PROJECT` | your GCP project | e.g. `rapid-agent-hackathon-26` |
+| `BIGQUERY_DATASET` | `consentops_demo` | Load via `npm run bigquery:setup` first |
+| `FIVETRAN_API_KEY` | Secret Manager | Same key as MCP; use `--set-secrets` |
+| `FIVETRAN_API_SECRET` | Secret Manager | Pair with API key |
+| `FIVETRAN_ALLOW_WRITES` | `false` | Required for read-only MCP runtime |
+| `FIVETRAN_MCP_RUNTIME` | `true` | Hosted MCP on Cloud Run (Dockerfile includes `uv`); REST fallback on failure |
+
+Grant the Cloud Run **runtime service account** `roles/bigquery.dataEditor` and `roles/bigquery.jobUser` on the project.
+
+Example deploy with secrets (after `npm run bigquery:setup` and Secret Manager versions exist):
+
+```bash
+gcloud run deploy consentops-agent \
+  --project PROJECT_ID \
+  --region us-central1 \
+  --source . \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080 \
+  --max-instances=1 \
+  --service-account SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com \
+  --set-env-vars DEMO_MODE=true,CONSENTOPS_DEMO_MODE=true,GEMINI_MODEL=gemini-3.5-flash,CONSENTOPS_WAREHOUSE_MODE=bigquery_full,GOOGLE_CLOUD_PROJECT=PROJECT_ID,BIGQUERY_DATASET=consentops_demo,FIVETRAN_ALLOW_WRITES=false,FIVETRAN_MCP_RUNTIME=true \
+  --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest,FIVETRAN_API_KEY=FIVETRAN_API_KEY:latest,FIVETRAN_API_SECRET=FIVETRAN_API_SECRET:latest
+```
+
+Without Fivetran/BigQuery env vars, the hosted URL correctly shows **Fivetran: mock** and **Warehouse: local_json** — that is the default demo, not a bug.
+
+## Environment variables (default demo)
 
 | Variable | Hackathon demo | Notes |
 |----------|----------------|-------|
 | `DEMO_MODE` | `true` | Documents intended demo configuration |
 | `CONSENTOPS_DEMO_MODE` | `true` | Same reserved flag (see README) |
 | `GEMINI_API_KEY` | omit | Omit for deterministic planner |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Optional |
-| `FIVETRAN_API_KEY` | omit | Real adapter is stubbed |
-| `FIVETRAN_API_SECRET` | omit | Real adapter is stubbed |
-| `GOOGLE_CLOUD_PROJECT` | omit | BigQuery adapter is stubbed |
-| `BIGQUERY_DATASET` | omit | BigQuery adapter is stubbed |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Optional |
+| `FIVETRAN_API_KEY` | omit (mock) | Use Secret Manager for live REST panel |
+| `FIVETRAN_API_SECRET` | omit (mock) | Pair with API key |
+| `CONSENTOPS_WAREHOUSE_MODE` | `local_json` | Set `bigquery_full` + project/dataset for live BQ demo |
+| `GOOGLE_CLOUD_PROJECT` | omit | Required for BigQuery modes |
+| `BIGQUERY_DATASET` | omit | e.g. `consentops_demo` |
 
 See `.env.example` for the full list and comments.
 
@@ -171,7 +204,7 @@ gcloud run deploy SERVICE_NAME \
   --allow-unauthenticated \
   --port 8080 \
   --max-instances=1 \
-  --set-env-vars DEMO_MODE=true,CONSENTOPS_DEMO_MODE=true,GEMINI_MODEL=gemini-2.5-flash \
+  --set-env-vars DEMO_MODE=true,CONSENTOPS_DEMO_MODE=true,GEMINI_MODEL=gemini-3.5-flash \
   --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest
 ```
 

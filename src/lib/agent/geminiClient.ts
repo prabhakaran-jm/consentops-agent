@@ -7,12 +7,15 @@ export interface GeminiClientConfig {
   model: string;
 }
 
+/** Default planner model — Gemini 3.5 Flash (GA). Override with GEMINI_MODEL. */
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+
 export const getGeminiConfigFromEnv = (): GeminiClientConfig | null => {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
   return {
     apiKey,
-    model: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL,
   };
 };
 

@@ -70,5 +70,5 @@ variable "gemini_secret_id" {
 variable "gemini_model" {
   type        = string
   description = "Gemini model id passed to the app."
-  default     = "gemini-2.5-flash"
+  default     = "gemini-3.5-flash"
 }

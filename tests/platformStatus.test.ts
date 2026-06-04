@@ -56,7 +56,7 @@ describe("platform status", () => {
 
   it("reports configured flags without exposing secret values", () => {
     process.env.GEMINI_API_KEY = PLANTED_SECRET;
-    process.env.GEMINI_MODEL = "gemini-2.0-flash";
+    process.env.GEMINI_MODEL = "gemini-3.5-flash";
     process.env.FIVETRAN_API_KEY = "plant-fivetran-key";
     process.env.FIVETRAN_API_SECRET = "plant-fivetran-secret";
     process.env.GOOGLE_CLOUD_PROJECT = "plant-gcp-project";
@@ -67,7 +67,7 @@ describe("platform status", () => {
     const serialized = JSON.stringify(status);
 
     expect(status.gemini.configured).toBe(true);
-    expect(status.gemini.model).toBe("gemini-2.0-flash");
+    expect(status.gemini.model).toBe("gemini-3.5-flash");
     expect(status.adapters.fivetranRealConfigured).toBe(true);
     expect(status.adapters.bigQueryConfigured).toBe(true);
     expect(status.adapters.bigQueryProjectId).toBe("plant-gcp-project");

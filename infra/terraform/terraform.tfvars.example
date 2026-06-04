@@ -20,4 +20,4 @@ create_artifact_registry = true
 enable_gemini_secret = false
 mount_gemini_secret  = false
 gemini_secret_id     = "GEMINI_API_KEY"
-gemini_model         = "gemini-2.5-flash"
+gemini_model         = "gemini-3.5-flash"

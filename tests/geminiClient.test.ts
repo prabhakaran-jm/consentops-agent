@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createGeminiClient } from "@/lib/agent/geminiClient";
+import { createGeminiClient, DEFAULT_GEMINI_MODEL, getGeminiConfigFromEnv } from "@/lib/agent/geminiClient";
 import { planConsentCleanup } from "@/lib/agent/consentPlanner";
 import { demoSubject } from "@/lib/demo/seedData";
 import type { DataMatch } from "@/lib/warehouse/types";
@@ -41,8 +41,17 @@ describe("gemini client", () => {
     vi.restoreAllMocks();
   });
 
+  it("defaults to Gemini 3.5 Flash when GEMINI_MODEL is unset", () => {
+    process.env.GEMINI_API_KEY = TEST_API_KEY;
+    delete process.env.GEMINI_MODEL;
+
+    const config = getGeminiConfigFromEnv();
+    expect(config?.model).toBe(DEFAULT_GEMINI_MODEL);
+    expect(DEFAULT_GEMINI_MODEL).toBe("gemini-3.5-flash");
+  });
+
   it("sends the API key in x-goog-api-key header, not the URL", async () => {
-    const client = createGeminiClient({ apiKey: TEST_API_KEY, model: "gemini-2.0-flash" });
+    const client = createGeminiClient({ apiKey: TEST_API_KEY, model: DEFAULT_GEMINI_MODEL });
     await client.generateJson(TEST_PROMPT);
 
     const fetchMock = vi.mocked(fetch);
@@ -57,7 +66,7 @@ describe("gemini client", () => {
   });
 
   it("includes the prompt in the request body but not the API key", async () => {
-    const client = createGeminiClient({ apiKey: TEST_API_KEY, model: "gemini-2.0-flash" });
+    const client = createGeminiClient({ apiKey: TEST_API_KEY, model: DEFAULT_GEMINI_MODEL });
     await client.generateJson(TEST_PROMPT);
 
     const [, init] = vi.mocked(fetch).mock.calls[0]!;
@@ -77,7 +86,7 @@ describe("gemini client", () => {
       }),
     );
 
-    const client = createGeminiClient({ apiKey: TEST_API_KEY, model: "gemini-2.0-flash" });
+    const client = createGeminiClient({ apiKey: TEST_API_KEY, model: DEFAULT_GEMINI_MODEL });
 
     let thrown: unknown;
     try {

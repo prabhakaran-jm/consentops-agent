@@ -22,7 +22,7 @@ ConsentOps treats **Fivetran MCP** as the **primary** partner integration for ag
 | Layer | Role |
 |-------|------|
 | **Fivetran MCP (primary)** | Cursor/agent MCP session (this doc) + optional app runtime when `FIVETRAN_MCP_RUNTIME=true` (`list_connections` via MCP) |
-| **Fivetran REST (secondary)** | Step 2 UI mirror when MCP runtime off or fails (e.g. Cloud Run without `uv`); `triggerSync` disabled |
+| **Fivetran REST (secondary)** | Step 2 UI mirror when MCP runtime off or MCP spawn fails; `triggerSync` disabled |
 | **Gemini** | Advisory cleanup planner (deterministic safety validation required) |
 | **ConsentOps safety engine** | Approval-gated executor; record-scoped actions only |
 | **BigQuery (`bigquery_full`)** | Scan, execute, and live re-scan on synthetic `consentops_demo` fixtures |
@@ -96,7 +96,7 @@ When `FIVETRAN_MCP_RUNTIME=true` and `FIVETRAN_ALLOW_WRITES=false`, the Next.js 
 | Environment | Typical source | Notes |
 |-------------|----------------|-------|
 | Local `npm run dev` | `mcp_runtime` when flag + [uv](https://docs.astral.sh/uv/) installed | `GET /api/status` → `fivetranIntegrationSource: "mcp_runtime"` |
-| Cloud Run (Alpine) | `rest` | Dockerfile has no `uv`; REST mirror is honest fallback |
+| Cloud Run (Docker image) | `mcp_runtime` when `FIVETRAN_MCP_RUNTIME=true` | Dockerfile bundles `uv` + pre-fetches `fivetran-mcp`; REST fallback on spawn failure |
 
 Env vars: `FIVETRAN_MCP_RUNTIME`, `FIVETRAN_ALLOW_WRITES=false`, optional `FIVETRAN_MCP_COMMAND` / `FIVETRAN_MCP_ARGS`. See `.env.example`.
 
