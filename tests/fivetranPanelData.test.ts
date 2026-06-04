@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MockFivetranAdapter } from "@/lib/connectors/mockFivetranAdapter";
+import { RealFivetranAdapter } from "@/lib/connectors/realFivetranAdapter";
 import {
   getFivetranAdapter,
   getFivetranPanelMode,
@@ -8,6 +9,7 @@ import {
 import {
   buildFivetranConnectorPanelData,
   getFivetranConnectorPanelData,
+  LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT,
   toRedactedPanelItems,
 } from "@/lib/connectors/fivetranPanelData";
 
@@ -34,12 +36,12 @@ describe("fivetran adapter factory", () => {
     expect(getFivetranAdapter()).toBeInstanceOf(MockFivetranAdapter);
   });
 
-  it("labels real_configured_stub when credentials exist but stays on mock adapter", () => {
+  it("labels live_read_only when credentials exist but panel uses adapter factory", () => {
     process.env.FIVETRAN_API_KEY = "plant-key";
     process.env.FIVETRAN_API_SECRET = "plant-secret";
 
-    expect(getFivetranPanelMode()).toBe("real_configured_stub");
-    expect(getFivetranAdapter()).toBeInstanceOf(MockFivetranAdapter);
+    expect(getFivetranPanelMode()).toBe("live_read_only");
+    expect(getFivetranAdapter()).toBeInstanceOf(RealFivetranAdapter);
   });
 });
 
@@ -64,17 +66,31 @@ describe("fivetran panel data", () => {
     expect(panel.modeLabel.toLowerCase()).toContain("mock");
   });
 
-  it("uses real_configured_stub label when credentials are set", async () => {
+  it("uses live_read_only label when credentials are set", async () => {
     process.env.FIVETRAN_API_KEY = "plant-key";
     process.env.FIVETRAN_API_SECRET = "plant-secret";
 
     const adapter = new MockFivetranAdapter();
     const panel = buildFivetranConnectorPanelData(await adapter.listConnectors());
 
-    expect(panel.mode).toBe("real_configured_stub");
-    expect(panel.modeLabel).toContain("stubbed");
+    expect(panel.mode).toBe("live_read_only");
+    expect(panel.modeLabel.toLowerCase()).toContain("live");
 
     delete process.env.FIVETRAN_API_KEY;
     delete process.env.FIVETRAN_API_SECRET;
+  });
+
+  it("shows setup hint when live mode has zero connections", () => {
+    const panel = buildFivetranConnectorPanelData([], "live_read_only");
+
+    expect(panel.connectionCount).toBe(0);
+    expect(panel.emptyConnectionsHint).toBe(LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT);
+  });
+
+  it("does not show empty hint for mock connectors", async () => {
+    const panel = await getFivetranConnectorPanelData();
+
+    expect(panel.connectionCount).toBeGreaterThan(0);
+    expect(panel.emptyConnectionsHint).toBeNull();
   });
 });

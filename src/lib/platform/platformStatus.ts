@@ -1,9 +1,14 @@
 import { getGeminiConfigFromEnv } from "@/lib/agent/geminiClient";
 import type { PlannerSource } from "@/lib/agent/consentPlanner";
-import { getFivetranPanelMode, type FivetranPanelMode } from "@/lib/connectors/fivetranAdapterFactory";
+import {
+  getFivetranActiveMode,
+  getFivetranPanelMode,
+  type FivetranPanelMode,
+} from "@/lib/connectors/fivetranAdapterFactory";
 import { getRealFivetranConfigFromEnv } from "@/lib/connectors/realFivetranAdapter";
 import { getDemoWorkflowState } from "@/lib/demo/demoWorkflowState";
 import { getBigQueryConfigFromEnv } from "@/lib/warehouse/bigQueryWarehouse";
+import { getWarehouseModeFromEnv, type WarehouseMode } from "@/lib/warehouse/warehouseConfig";
 
 import packageJson from "../../../package.json";
 
@@ -25,9 +30,13 @@ export type PlatformStatus = {
     model: string | null;
   };
   adapters: {
-    warehouse: "local_json";
+    warehouse: WarehouseMode;
+    warehouseScanSource: "local_json" | "bigquery";
+    warehouseExecution: "local_json" | "bigquery";
     bigQueryConfigured: boolean;
-    fivetranActive: "mock";
+    bigQueryProjectId: string | null;
+    bigQueryDataset: string | null;
+    fivetranActive: "mock" | "live_read_only";
     fivetranPanelMode: FivetranPanelMode;
     fivetranRealConfigured: boolean;
   };
@@ -46,6 +55,17 @@ export type PlatformStatus = {
 export const getPlatformStatus = (): PlatformStatus => {
   const geminiConfig = getGeminiConfigFromEnv();
   const workflow = getDemoWorkflowState();
+  const warehouseMode = getWarehouseModeFromEnv();
+  const bigQueryConfig = getBigQueryConfigFromEnv();
+  const bigQueryConfigured = bigQueryConfig !== null;
+
+  let warehouseScanSource: "local_json" | "bigquery" = "local_json";
+  if (warehouseMode !== "local_json" && bigQueryConfigured) {
+    warehouseScanSource = "bigquery";
+  }
+
+  const warehouseExecution: "local_json" | "bigquery" =
+    warehouseMode === "bigquery_full" && bigQueryConfigured ? "bigquery" : "local_json";
 
   return {
     syntheticDataOnly: true,
@@ -54,16 +74,20 @@ export const getPlatformStatus = (): PlatformStatus => {
     demoModeDocumented: {
       DEMO_MODE: envFlagEnabled("DEMO_MODE"),
       CONSENTOPS_DEMO_MODE: envFlagEnabled("CONSENTOPS_DEMO_MODE"),
-      note: "Documented demo flags only; adapter switching is not wired from env yet.",
+      note: "Demo mode enforces synthetic subject allowlist on warehouse scan/execute.",
     },
     gemini: {
       configured: geminiConfig !== null,
       model: geminiConfig?.model ?? null,
     },
     adapters: {
-      warehouse: "local_json",
-      bigQueryConfigured: getBigQueryConfigFromEnv() !== null,
-      fivetranActive: "mock",
+      warehouse: warehouseMode,
+      warehouseScanSource,
+      warehouseExecution,
+      bigQueryConfigured,
+      bigQueryProjectId: bigQueryConfig?.projectId ?? null,
+      bigQueryDataset: bigQueryConfig?.dataset ?? null,
+      fivetranActive: getFivetranActiveMode(),
       fivetranPanelMode: getFivetranPanelMode(),
       fivetranRealConfigured: getRealFivetranConfigFromEnv() !== null,
     },

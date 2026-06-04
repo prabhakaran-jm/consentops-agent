@@ -12,7 +12,7 @@ describe("README platform proof section", () => {
     expect(raw).toMatch(/## Platform proof \(hackathon\)/);
     expect(raw).toMatch(/### Real vs mocked/);
     expect(raw).toMatch(/\*\*IMPLEMENTED\*\*/);
-    expect(raw).toMatch(/\*\*STUBBED\*\*/);
+    expect(raw).toMatch(/\*\*PLANNED\*\*/);
     expect(raw).toMatch(/\*\*EXTERNAL\/MANUAL\*\*/);
   });
 

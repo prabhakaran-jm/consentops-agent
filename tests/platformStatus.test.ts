@@ -14,6 +14,7 @@ describe("platform status", () => {
     FIVETRAN_API_SECRET: process.env.FIVETRAN_API_SECRET,
     GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT,
     BIGQUERY_DATASET: process.env.BIGQUERY_DATASET,
+    CONSENTOPS_WAREHOUSE_MODE: process.env.CONSENTOPS_WAREHOUSE_MODE,
     DEMO_MODE: process.env.DEMO_MODE,
     CONSENTOPS_DEMO_MODE: process.env.CONSENTOPS_DEMO_MODE,
   };
@@ -26,6 +27,7 @@ describe("platform status", () => {
     delete process.env.FIVETRAN_API_SECRET;
     delete process.env.GOOGLE_CLOUD_PROJECT;
     delete process.env.BIGQUERY_DATASET;
+    delete process.env.CONSENTOPS_WAREHOUSE_MODE;
     delete process.env.DEMO_MODE;
     delete process.env.CONSENTOPS_DEMO_MODE;
   });
@@ -46,6 +48,8 @@ describe("platform status", () => {
     expect(status.adapters.fivetranActive).toBe("mock");
     expect(status.adapters.fivetranPanelMode).toBe("mock");
     expect(status.adapters.warehouse).toBe("local_json");
+    expect(status.adapters.warehouseScanSource).toBe("local_json");
+    expect(status.adapters.warehouseExecution).toBe("local_json");
     expect(status.workflow.lastPlanSource).toBeNull();
     expect(serialized).not.toContain(PLANTED_SECRET);
   });
@@ -66,10 +70,24 @@ describe("platform status", () => {
     expect(status.gemini.model).toBe("gemini-2.0-flash");
     expect(status.adapters.fivetranRealConfigured).toBe(true);
     expect(status.adapters.bigQueryConfigured).toBe(true);
+    expect(status.adapters.bigQueryProjectId).toBe("plant-gcp-project");
+    expect(status.adapters.bigQueryDataset).toBe("consentops_demo");
     expect(status.demoModeDocumented.DEMO_MODE).toBe(true);
     expect(serialized).not.toContain(PLANTED_SECRET);
     expect(serialized).not.toContain("plant-fivetran-secret");
-    expect(serialized).not.toContain("plant-gcp-project");
+    expect(status.adapters.bigQueryProjectId).toBe("plant-gcp-project");
+  });
+
+  it("reports bigquery execution when mode is bigquery_full", () => {
+    process.env.GOOGLE_CLOUD_PROJECT = "plant-gcp-project";
+    process.env.BIGQUERY_DATASET = "consentops_demo";
+    process.env.CONSENTOPS_WAREHOUSE_MODE = "bigquery_full";
+
+    const status = getPlatformStatus();
+
+    expect(status.adapters.warehouse).toBe("bigquery_full");
+    expect(status.adapters.warehouseScanSource).toBe("bigquery");
+    expect(status.adapters.warehouseExecution).toBe("bigquery");
   });
 
   it("reflects last planner source after buildDemoPlan", async () => {

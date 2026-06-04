@@ -11,7 +11,7 @@ locals {
     { name = "NODE_ENV", value = "production" },
   ]
 
-  secret_env = var.enable_gemini_secret ? [
+  secret_env = var.mount_gemini_secret ? [
     {
       name      = "GEMINI_API_KEY"
       secret_id = google_secret_manager_secret.gemini[0].secret_id

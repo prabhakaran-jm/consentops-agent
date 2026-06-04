@@ -46,8 +46,19 @@ variable "artifact_repository_id" {
 
 variable "enable_gemini_secret" {
   type        = bool
-  description = "Mount GEMINI_API_KEY from Secret Manager (secret must exist; value added outside Terraform)."
+  description = "Create Secret Manager secret resource and grant the runtime service account accessor."
   default     = false
+}
+
+variable "mount_gemini_secret" {
+  type        = bool
+  description = "Mount GEMINI_API_KEY on Cloud Run from Secret Manager. Requires enable_gemini_secret and at least one secret version (add via gcloud, never Terraform)."
+  default     = false
+
+  validation {
+    condition     = !var.mount_gemini_secret || var.enable_gemini_secret
+    error_message = "mount_gemini_secret requires enable_gemini_secret = true."
+  }
 }
 
 variable "gemini_secret_id" {
@@ -59,5 +70,5 @@ variable "gemini_secret_id" {
 variable "gemini_model" {
   type        = string
   description = "Gemini model id passed to the app."
-  default     = "gemini-2.0-flash"
+  default     = "gemini-2.5-flash"
 }

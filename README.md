@@ -53,10 +53,10 @@ The agent proposes and coordinates; **humans approve**. Nothing destructive runs
 | Service | Role in demo | Status |
 |---------|--------------|--------|
 | **Gemini** | Optional cleanup planning via `GEMINI_API_KEY`; deterministic fallback when absent or on failure | Implemented |
-| **Cloud Run** | Container deployment for hosted demos | Documented ([deployment guide](docs/cloud-run-deployment.md)) |
+| **Cloud Run** | Container deployment for hosted demos | Documented ([deployment guide](docs/cloud-run-deployment.md)); [Terraform IaC](infra/terraform/README.md) |
 | **Platform status** | `GET /api/status` — planner mode, adapter modes (no secrets) | Implemented |
 | **Agent tool API** | `POST /api/agent/plan` — scan + plan only ([OpenAPI](docs/openapi/consentops-agent.yaml)) | Implemented |
-| **BigQuery** | Production warehouse target for scan / dry-run / execute / verify | Stubbed (`bigQueryWarehouse.ts`) |
+| **BigQuery** | Synthetic warehouse scan / execute / verify (mode-controlled) | Implemented (`CONSENTOPS_WAREHOUSE_MODE`) |
 | **Secret Manager** | Recommended for `GEMINI_API_KEY` on Cloud Run | Documented, not wired in app |
 
 The hackathon build runs locally on in-memory fixtures. Cloud Run deployment uses Docker + standalone Next.js output.
@@ -69,12 +69,12 @@ Fivetran is the **data movement layer** in the story: connectors sync operationa
 
 | Capability | Demo | Production placeholder |
 |------------|------|------------------------|
-| List connectors | `MockFivetranAdapter` (fail-closed factory) | `realFivetranAdapter.ts` (stubbed) |
-| Connector health & sync history | Mock data; redacted IDs in UI (`connector_01`, …) | Stubbed REST |
-| Trigger verification sync | Mock queue response | Stubbed |
+| List connectors | `MockFivetranAdapter` when no credentials | `RealFivetranAdapter` read-only REST when credentials set |
+| Connector health & sync history | Live REST or mock; redacted IDs in UI (`connector_01`, …) | Read-only metadata |
+| Trigger verification sync | Mock queue response only | **Disabled** on live REST adapter |
 | MCP read-only evidence | [Template doc](docs/fivetran-mcp-evidence.md) | EXTERNAL/MANUAL — you complete |
 
-Fivetran **moves data**; ConsentOps **governs cleanup**. The mock adapter simulates connector cards in the UI. The real adapter is intentionally stubbed — sync only, never cleanup.
+Fivetran **moves data**; ConsentOps **governs cleanup**. With credentials, the panel loads live read-only connector status via REST. `triggerSync` is never enabled on the live adapter.
 
 ---
 
@@ -221,14 +221,15 @@ Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use 
 | Gemini planner + deterministic fallback | **IMPLEMENTED** | `src/lib/agent/consentPlanner.ts` |
 | Planner provenance badge (Gemini vs fallback) | **IMPLEMENTED** | Shown in cleanup plan panel + `POST /api/plan` |
 | `GET /api/status` + platform status card | **IMPLEMENTED** | No secrets in response |
-| Fivetran panel (read-only, redacted IDs) | **IMPLEMENTED** | Always mock adapter; credentials only change label |
+| Fivetran panel (read-only, redacted IDs) | **IMPLEMENTED** | Mock without credentials; live REST when configured |
 | `POST /api/agent/plan` (scan + plan only) | **IMPLEMENTED** | Rejects execution-shaped payloads |
 | OpenAPI agent spec | **IMPLEMENTED** | [docs/openapi/](docs/openapi/) |
 | Cloud Run + Docker image | **DOCUMENTED** | You deploy; URL above |
 | Secret Manager for Gemini key | **DOCUMENTED** | Not wired in code |
 | Fivetran MCP read-only evidence | **EXTERNAL/MANUAL** | [Template](docs/fivetran-mcp-evidence.md) — set `COMPLETED` or disclaim |
-| Real Fivetran REST status | **STUBBED** | `realFivetranAdapter.ts` |
-| Real BigQuery warehouse | **STUBBED** | `bigQueryWarehouse.ts` |
+| Real Fivetran REST status | **IMPLEMENTED** | Read-only `GET /v1/connections`; `triggerSync` disabled |
+| BigQuery warehouse | **IMPLEMENTED** | Modes: `local_json`, `bigquery_scan`, `bigquery_full` via `CONSENTOPS_WAREHOUSE_MODE` |
+| Fivetran + BigQuery demo | **DOCUMENTED** | [fivetran-bigquery-demo.md](docs/fivetran-bigquery-demo.md) — live connectors + `bigquery_full` cleanup |
 | `DEMO_MODE` env-driven adapter switch | **PLANNED** | Flag documented; not read by app yet |
 | Durable workflow state | **PLANNED** | In-memory today |
 
@@ -240,6 +241,10 @@ Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use 
 | [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md) | Sanitized Fivetran MCP proof (required for partner track) |
 | [docs/openapi/README.md](docs/openapi/README.md) | Import `POST /api/agent/plan` as an agent tool |
 | [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) | Build, deploy, verify hosted demo |
+| [docs/bigquery-demo-setup.md](docs/bigquery-demo-setup.md) | `npm run bigquery:setup` — load synthetic Ana Reyes tables into BigQuery |
+| [infra/terraform/README.md](infra/terraform/README.md) | Terraform IaC for Cloud Run |
+| [docs/demo-video-script.md](docs/demo-video-script.md) | ~2 min judging video beat sheet |
+| [docs/devpost-submission.md](docs/devpost-submission.md) | Devpost copy blocks |
 
 ### Pre-submission gate
 
@@ -259,13 +264,13 @@ Copy `.env.example` to `.env.local`. All keys optional for the default demo.
 
 | Variable | Purpose |
 |----------|---------|
-| `DEMO_MODE` | Documents intended demo config (not read by app code yet) |
-| `CONSENTOPS_DEMO_MODE` | Same reserved flag |
+| `DEMO_MODE` / `CONSENTOPS_DEMO_MODE` | When true, warehouse ops restricted to synthetic subject allowlist |
 | `GEMINI_API_KEY` | Optional Gemini planning; omit for deterministic planner |
-| `GEMINI_MODEL` | Gemini model id (default `gemini-2.0-flash`) |
-| `FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET` | Real Fivetran adapter (stubbed) |
-| `GOOGLE_CLOUD_PROJECT` / `BIGQUERY_DATASET` | BigQuery adapter (stubbed) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account for BigQuery (when implemented) |
+| `GEMINI_MODEL` | Gemini model id (default `gemini-2.5-flash`) |
+| `CONSENTOPS_WAREHOUSE_MODE` | `local_json` (default), `bigquery_scan`, or `bigquery_full` |
+| `FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET` | Live read-only Fivetran REST panel |
+| `GOOGLE_CLOUD_PROJECT` / `BIGQUERY_DATASET` | BigQuery warehouse adapter |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ADC for BigQuery locally (Cloud Run uses service account) |
 
 API keys are sent via `x-goog-api-key` header, never in URLs.
 
@@ -294,21 +299,17 @@ npm test
 ## Known limitations
 
 - **In-memory state** — demo workflow resets on cold start / redeploy; not suitable for multi-user production without durable storage
-- **Synthetic fixtures only** — Ana Reyes persona in local JSON; no real warehouse connection in the default demo
-- **Stubbed production adapters** — real Fivetran and BigQuery integrations are placeholders with TODOs
+- **Hybrid BigQuery scan** — `bigquery_scan` reads from BigQuery but executes on local JSON; load matching synthetic rows first ([setup guide](docs/bigquery-demo-setup.md))
 - **Single-instance demo** — Cloud Run should use `--max-instances=1` so the workflow stays on one container
 - **Not legal advice** — audit reports include disclaimers; does not certify GDPR or regulatory compliance
-- **`DEMO_MODE` env flag** — documented but not yet wired to runtime adapter switching
+- **Fivetran trigger sync** — disabled on live REST adapter; mock-only simulation in UI
 
 ---
 
 ## Future work
 
-- Wire `realFivetranAdapter` to Fivetran REST API for live connector status
-- Implement `BigQueryWarehouseAdapter` with parameterized, record-scoped DML
 - Durable workflow state (Firestore / Cloud SQL) for multi-session demos
 - Secret Manager integration for Cloud Run deployments
-- Subject allowlist enforcement when `DEMO_MODE` is wired
 - Multi-tenant isolation and auth for production pilots
 
 ---

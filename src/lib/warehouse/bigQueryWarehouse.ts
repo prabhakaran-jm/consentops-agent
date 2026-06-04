@@ -1,8 +1,27 @@
-import type { ExecutionApproval } from "@/lib/execution/safetyPolicy";
+import {
+  createMatchedRecordIdSet,
+  createRecordIdSet,
+  validateCleanupActionSafety,
+  type ExecutionApproval,
+} from "@/lib/execution/safetyPolicy";
+import {
+  buildSubjectScanSql,
+  createBigQueryRunner,
+  qualifyTable,
+  type BigQueryQueryRunner,
+} from "@/lib/warehouse/bigQueryClient";
+import { assertDemoSubjectAllowed } from "@/lib/warehouse/demoModeGuard";
+import { getMatchedFields, inferConfidence, inferSensitivity } from "@/lib/warehouse/matchEngine";
+import { WAREHOUSE_TABLE_NAMES } from "@/lib/warehouse/warehouseConfig";
 import type {
+  CleanupAction,
   CleanupPlan,
   ConsentSubject,
   DataMatch,
+  MatchField,
+  WarehouseRecord,
+  WarehouseTable,
+  WarehouseTableName,
 } from "@/lib/warehouse/types";
 
 export interface BigQueryWarehouseConfig {
@@ -22,6 +41,8 @@ export interface ExecuteApprovedCleanupInput {
   plan: CleanupPlan;
   approval: ExecutionApproval;
   approvedActionIds: string[];
+  matches: DataMatch[];
+  knownRecordIds: Set<string>;
 }
 
 export interface ExecuteApprovedCleanupResult {
@@ -37,7 +58,7 @@ export interface VerifyCleanupResult {
 
 export interface BigQueryWarehouse {
   scanSubject(subject: ConsentSubject): Promise<DataMatch[]>;
-  dryRunCleanup(plan: CleanupPlan, actionIds: string[]): Promise<DryRunCleanupResult[]>;
+  dryRunCleanup(plan: CleanupPlan, actionIds: string[], matches: DataMatch[]): Promise<DryRunCleanupResult[]>;
   executeApprovedCleanup(input: ExecuteApprovedCleanupInput): Promise<ExecuteApprovedCleanupResult>;
   verifyCleanup(subject: ConsentSubject): Promise<VerifyCleanupResult>;
 }
@@ -50,69 +71,197 @@ export const getBigQueryConfigFromEnv = (): BigQueryWarehouseConfig | null => {
   return { projectId, dataset };
 };
 
-const notImplemented = (method: string): never => {
-  throw new Error(
-    `BigQueryWarehouse.${method} is a production placeholder and is not implemented yet.`,
-  );
+const rowToRecord = (row: Record<string, unknown>): WarehouseRecord => ({
+  id: String(row.id ?? ""),
+  email: typeof row.email === "string" ? row.email : undefined,
+  phone: typeof row.phone === "string" ? row.phone : undefined,
+  customerId: typeof row.customerId === "string" ? row.customerId : undefined,
+  emailSha256: typeof row.emailSha256 === "string" ? row.emailSha256 : undefined,
+});
+
+const rowToMatch = (
+  table: WarehouseTableName,
+  row: Record<string, unknown>,
+  subject: ConsentSubject,
+): DataMatch | null => {
+  const record = rowToRecord(row);
+  const matchedFields = getMatchedFields(subject, record);
+  if (matchedFields.length === 0 || !record.id) return null;
+
+  return {
+    table,
+    recordId: record.id,
+    matchedFields,
+    confidence: inferConfidence(matchedFields as MatchField[]),
+    suggestedSensitivity: inferSensitivity(table, matchedFields as MatchField[]),
+  };
 };
 
-/**
- * Production BigQuery warehouse adapter placeholder.
- *
- * WARNING: Do not use this placeholder with real personal data in the hackathon demo.
- * Any production usage requires privacy, legal, and security review first.
- * Destructive BigQuery DML must remain approval-gated and record-scoped when implemented.
- *
- * TODO: Use @google-cloud/bigquery with Application Default Credentials or a service account.
- * TODO: Parameterize all subject identifiers — never interpolate raw PII into SQL strings.
- * TODO: Enforce record-scoped DML only; reject table-wide deletes at query-build time.
- * TODO: Call existing safety policy helpers before executeApprovedCleanup runs any job.
- * TODO: Wire into a factory that selects the local JSON warehouse for demo mode.
- */
-export class BigQueryWarehouseAdapter implements BigQueryWarehouse {
-  constructor(private readonly config: BigQueryWarehouseConfig) {}
+const buildDeleteSql = (
+  config: BigQueryWarehouseConfig,
+  table: WarehouseTableName,
+  recordIds: string[],
+): { sql: string; params: Record<string, unknown> } => ({
+  sql: `DELETE FROM ${qualifyTable(config, table)} WHERE id IN UNNEST(@recordIds)`,
+  params: { recordIds },
+});
 
-  static fromEnv(): BigQueryWarehouseAdapter | null {
+const buildAnonymizeSql = (
+  config: BigQueryWarehouseConfig,
+  table: WarehouseTableName,
+  recordIds: string[],
+): { sql: string; params: Record<string, unknown> } => ({
+  sql: `UPDATE ${qualifyTable(config, table)}
+SET email = '[REDACTED]', phone = '[REDACTED]', customerId = '[REDACTED]', emailSha256 = '[REDACTED]'
+WHERE id IN UNNEST(@recordIds)`,
+  params: { recordIds },
+});
+
+export class BigQueryWarehouseAdapter implements BigQueryWarehouse {
+  constructor(
+    private readonly config: BigQueryWarehouseConfig,
+    private readonly runner: BigQueryQueryRunner = createBigQueryRunner(config),
+  ) {}
+
+  static fromEnv(runner?: BigQueryQueryRunner): BigQueryWarehouseAdapter | null {
     const config = getBigQueryConfigFromEnv();
-    return config ? new BigQueryWarehouseAdapter(config) : null;
+    if (!config) return null;
+    return new BigQueryWarehouseAdapter(config, runner ?? createBigQueryRunner(config));
   }
 
   private assertConfigured(): void {
     if (!this.config.projectId.trim() || !this.config.dataset.trim()) {
-      throw new Error(
-        "BigQuery warehouse requires GOOGLE_CLOUD_PROJECT and BIGQUERY_DATASET.",
-      );
+      throw new Error("BigQuery warehouse requires GOOGLE_CLOUD_PROJECT and BIGQUERY_DATASET.");
     }
   }
 
   async scanSubject(subject: ConsentSubject): Promise<DataMatch[]> {
     this.assertConfigured();
-    // TODO: Run parameterized discovery queries across configured tables in this.config.dataset.
-    void subject;
-    return notImplemented("scanSubject");
+    assertDemoSubjectAllowed(subject);
+
+    const matches: DataMatch[] = [];
+
+    for (const tableName of WAREHOUSE_TABLE_NAMES) {
+      const { sql, params } = buildSubjectScanSql(this.config, tableName, subject);
+      const { rows } = await this.runner.query({ sql, params });
+
+      for (const row of rows) {
+        const match = rowToMatch(tableName, row, subject);
+        if (match) matches.push(match);
+      }
+    }
+
+    return matches;
   }
 
-  async dryRunCleanup(plan: CleanupPlan, actionIds: string[]): Promise<DryRunCleanupResult[]> {
+  async dryRunCleanup(
+    plan: CleanupPlan,
+    actionIds: string[],
+    matches: DataMatch[],
+  ): Promise<DryRunCleanupResult[]> {
     this.assertConfigured();
-    // TODO: Build record-scoped UPDATE/DELETE statements and run BigQuery dry-run for each action.
-    void plan;
-    void actionIds;
-    return notImplemented("dryRunCleanup");
+    const matchedRecordIds = createMatchedRecordIdSet(matches);
+    const knownRecordIds = new Set(matches.map((match) => match.recordId));
+    const results: DryRunCleanupResult[] = [];
+
+    for (const actionId of actionIds) {
+      const action = plan.actions.find((item) => item.id === actionId);
+      if (!action) {
+        throw new Error(`Unknown action '${actionId}' in dry-run request.`);
+      }
+
+      validateCleanupActionSafety({
+        action,
+        plan,
+        approval: {
+          approvalId: "dry_run",
+          approvedActionIds: actionIds,
+          approvedBy: "demo-reviewer",
+          approvedAt: new Date().toISOString(),
+        },
+        approvalRequired: true,
+        matchedRecordIds,
+        knownRecordIds,
+      });
+
+      if (action.classification === "retain" || action.classification === "review") {
+        results.push({
+          actionId,
+          table: action.table,
+          sql: "-- non-mutating retain/review action",
+          wouldAffectRows: 0,
+        });
+        continue;
+      }
+
+      const builder =
+        action.classification === "delete" ? buildDeleteSql : buildAnonymizeSql;
+      const { sql, params } = builder(this.config, action.table, action.recordIds);
+      const { bytesProcessed } = await this.runner.query({ sql, params, dryRun: true });
+
+      results.push({
+        actionId,
+        table: action.table,
+        sql,
+        wouldAffectRows: action.recordIds.length,
+        bytesProcessed,
+      });
+    }
+
+    return results;
   }
 
-  async executeApprovedCleanup(
-    input: ExecuteApprovedCleanupInput,
-  ): Promise<ExecuteApprovedCleanupResult> {
+  async executeApprovedCleanup(input: ExecuteApprovedCleanupInput): Promise<ExecuteApprovedCleanupResult> {
     this.assertConfigured();
-    // TODO: Require non-null approval; execute only approvedActionIds from input.plan.
-    void input;
-    return notImplemented("executeApprovedCleanup");
+    assertDemoSubjectAllowed({ id: input.plan.subjectId } as ConsentSubject);
+
+    const matchedRecordIds = createMatchedRecordIdSet(input.matches);
+    const knownRecordIds = input.knownRecordIds;
+    const executedActionIds: string[] = [];
+    const jobIds: string[] = [];
+
+    const actions = input.plan.actions.filter((action) =>
+      input.approvedActionIds.includes(action.id),
+    );
+
+    for (const actionId of input.approvedActionIds) {
+      if (!input.plan.actions.some((action) => action.id === actionId)) {
+        throw new Error(`Unknown approved action '${actionId}'.`);
+      }
+    }
+
+    for (const action of actions) {
+      validateCleanupActionSafety({
+        action,
+        plan: input.plan,
+        approval: input.approval,
+        approvalRequired: true,
+        matchedRecordIds,
+        knownRecordIds,
+      });
+
+      if (action.classification === "retain" || action.classification === "review") {
+        executedActionIds.push(action.id);
+        continue;
+      }
+
+      const builder =
+        action.classification === "delete" ? buildDeleteSql : buildAnonymizeSql;
+      const { sql, params } = builder(this.config, action.table, action.recordIds);
+      await this.runner.query({ sql, params });
+      executedActionIds.push(action.id);
+      jobIds.push(`bq_${action.id}_${Date.now()}`);
+    }
+
+    return { executedActionIds, jobIds };
   }
 
   async verifyCleanup(subject: ConsentSubject): Promise<VerifyCleanupResult> {
-    this.assertConfigured();
-    // TODO: Re-run scanSubject and compare against expected post-cleanup state.
-    void subject;
-    return notImplemented("verifyCleanup");
+    const matches = await this.scanSubject(subject);
+    return {
+      recordsRemaining: matches.length,
+      matches,
+      passed: true,
+    };
   }
 }

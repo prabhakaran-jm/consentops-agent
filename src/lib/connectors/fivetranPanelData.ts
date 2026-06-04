@@ -10,6 +10,9 @@ import type { WarehouseTableName } from "@/lib/warehouse/types";
 export const FIVETRAN_READ_ONLY_NOTE =
   "Read-only connector status for the demo. No sync triggers, writes, or cleanup via Fivetran.";
 
+export const LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT =
+  "Live Fivetran API returned 0 connections. Add a connector in the Fivetran dashboard (destination: BigQuery on your GCP project), then run Scan again. See docs/fivetran-bigquery-demo.md.";
+
 export type FivetranConnectorPanelItem = {
   displayKey: string;
   name: string;
@@ -32,6 +35,7 @@ export type FivetranConnectorPanelData = {
   modeLabel: string;
   readOnlyNote: string;
   connectionCount: number;
+  emptyConnectionsHint: string | null;
   healthSummary: FivetranHealthSummary;
   connectors: FivetranConnectorPanelItem[];
 };
@@ -64,6 +68,8 @@ export const buildFivetranConnectorPanelData = (
   modeLabel: getFivetranModeLabel(mode),
   readOnlyNote: FIVETRAN_READ_ONLY_NOTE,
   connectionCount: connectors.length,
+  emptyConnectionsHint:
+    mode === "live_read_only" && connectors.length === 0 ? LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT : null,
   healthSummary: summarizeHealth(connectors),
   connectors: toRedactedPanelItems(connectors),
 });

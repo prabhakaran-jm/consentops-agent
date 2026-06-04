@@ -36,6 +36,8 @@ export function PlatformStatusPanel({ status, loading }: Props) {
             )}
             <Badge tone="neutral">Fivetran: {status.adapters.fivetranActive}</Badge>
             <Badge tone="neutral">Warehouse: {status.adapters.warehouse}</Badge>
+            <Badge tone="neutral">Scan: {status.adapters.warehouseScanSource}</Badge>
+            <Badge tone="neutral">Execute: {status.adapters.warehouseExecution}</Badge>
           </div>
 
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -59,9 +61,11 @@ export function PlatformStatusPanel({ status, loading }: Props) {
             <div>
               <dt className="font-medium text-slate-700">Production adapters configured</dt>
               <dd className="text-slate-600">
-                Fivetran panel {status.adapters.fivetranPanelMode} (REST{" "}
-                {status.adapters.fivetranRealConfigured ? "configured, stubbed" : "not configured"}),
-                BigQuery {status.adapters.bigQueryConfigured ? "configured (stubbed)" : "not configured"}
+                Fivetran {status.adapters.fivetranPanelMode}
+                {status.adapters.fivetranRealConfigured ? " (credentials set)" : " (mock)"}, BigQuery{" "}
+                {status.adapters.bigQueryConfigured
+                  ? `${status.adapters.bigQueryProjectId}.${status.adapters.bigQueryDataset}`
+                  : "not configured"}
               </dd>
             </div>
             <div>

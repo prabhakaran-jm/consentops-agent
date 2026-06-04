@@ -3,18 +3,19 @@ import type { CleanupPlan } from "@/lib/warehouse/types";
 import { generateAuditReport, type ConsentOpsAuditReport } from "@/lib/audit/auditReport";
 import { getFivetranAdapter } from "@/lib/connectors/fivetranAdapterFactory";
 import { getFivetranConnectorPanelData } from "@/lib/connectors/fivetranPanelData";
-import { executeCleanupActions } from "@/lib/execution/cleanupExecutor";
 import type { ExecutionApproval } from "@/lib/execution/safetyPolicy";
 import { getEmailSha256 } from "@/lib/demo/seedData";
 import {
   getDemoWorkflowState,
   updateDemoWorkflowState,
 } from "@/lib/demo/demoWorkflowState";
-import {
-  buildDataSpreadMap,
-  scanSubjectAcrossWarehouse,
-} from "@/lib/warehouse/localWarehouse";
+import { buildDataSpreadMap } from "@/lib/warehouse/localWarehouse";
 import type { ConsentSubject, DataMatch } from "@/lib/warehouse/types";
+import {
+  executeApprovedForWorkflow,
+  resolveWarehouseTablesScanned,
+  scanSubjectForWorkflow,
+} from "@/lib/warehouse/warehouseFactory";
 
 const cloneMatches = (matches: DataMatch[]): DataMatch[] => matches.map((match) => ({ ...match }));
 
@@ -38,8 +39,9 @@ export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
   const state = getDemoWorkflowState();
   const subject = subjectOverride ?? state.subject;
   const fivetran = await getFivetranConnectorPanelData();
-  const matches = scanSubjectAcrossWarehouse(subject, state.tables);
+  const { matches, scanSource } = await scanSubjectForWorkflow(subject, state.tables);
   const spreadMap = buildDataSpreadMap(matches);
+  updateDemoWorkflowState({ latestScanMatches: cloneMatches(matches) });
 
   return {
     subject,
@@ -47,6 +49,7 @@ export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
     matches,
     spreadMap,
     beforeCount: matches.length,
+    scanSource,
   };
 };
 
@@ -66,10 +69,14 @@ export const buildDemoPlan = async (input?: {
         }
       : currentState.subject;
 
-  const matches = input?.matches ? cloneMatches(input.matches) : scanSubjectAcrossWarehouse(subject, currentState.tables);
+  const matches = input?.matches
+    ? cloneMatches(input.matches)
+    : (await scanSubjectForWorkflow(subject, currentState.tables)).matches;
+
   const plannerResult = await planConsentCleanup({ subject, matches });
   updateDemoWorkflowState({
     subject,
+    latestScanMatches: cloneMatches(matches),
     latestPlan: plannerResult.plan,
     latestAudit: null,
     latestPlannerSource: plannerResult.source,
@@ -93,44 +100,55 @@ export const executeDemoPlan = async (payload: {
     approvedAt: new Date().toISOString(),
   };
 
-  const liveMatches = scanSubjectAcrossWarehouse(state.subject, state.tables);
+  const cachedMatches =
+    state.latestScanMatches &&
+    state.latestPlan &&
+    state.latestScanMatches.length === state.latestPlan.totalMatchesBeforeCleanup
+      ? cloneMatches(state.latestScanMatches)
+      : null;
+  const liveMatches =
+    cachedMatches ??
+    (await scanSubjectForWorkflow(state.subject, state.tables)).matches;
   const actionsToExecute = state.latestPlan.actions.filter((action) =>
     payload.approvedActionIds.includes(action.id),
   );
 
-  const execution = executeCleanupActions({
+  const workflowExecution = await executeApprovedForWorkflow({
+    subject: state.subject,
     tables: state.tables,
     plan: state.latestPlan,
     actions: actionsToExecute,
-    matches: liveMatches,
+    liveMatches,
     approval,
-    approvalRequired: true,
   });
 
-  const postMatches = scanSubjectAcrossWarehouse(state.subject, execution.tables);
   const connectors = await getFivetranAdapter().listConnectors();
 
   const audit = generateAuditReport({
     subject: state.subject,
     connectors,
-    warehouseTablesScanned: state.tables.map((table) => table.name),
+    warehouseTablesScanned: resolveWarehouseTablesScanned(state.tables),
     recordsFoundBefore: liveMatches.length,
     plan: state.latestPlan,
     approval,
-    executedActionIds: execution.executedActionIds,
-    recordsRemainingAfter: postMatches.length,
+    executedActionIds: workflowExecution.executedActionIds,
+    recordsRemainingAfter: workflowExecution.afterMatches.length,
     requestId: `req_demo_${Date.now()}`,
   });
 
   updateDemoWorkflowState({
-    tables: execution.tables,
+    tables: workflowExecution.tables,
     latestAudit: audit,
   });
 
   return {
-    execution,
-    afterCount: postMatches.length,
+    execution: {
+      tables: workflowExecution.tables,
+      executedActionIds: workflowExecution.executedActionIds,
+    },
+    afterCount: workflowExecution.afterMatches.length,
     audit,
+    executionBackend: workflowExecution.executionBackend,
   };
 };
 

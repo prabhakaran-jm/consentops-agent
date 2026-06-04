@@ -96,6 +96,27 @@ describe("consent planner", () => {
     expect(mockClient.generateJson).toHaveBeenCalledOnce();
   });
 
+  it("accepts a Gemini plan when totalMatchesBeforeCleanup is wrong but actions are complete", async () => {
+    const matches = [makeMatch("crm_customers", "crm_customers_001")];
+    const payload = buildValidGeminiPayload(matches);
+    payload.plan.totalMatchesBeforeCleanup = 99;
+
+    const mockClient: GeminiClient = {
+      generateJson: vi.fn().mockResolvedValue(JSON.stringify(payload)),
+    };
+
+    process.env.GEMINI_API_KEY = "test-key";
+
+    const result = await planConsentCleanup(
+      { subject: demoSubject, matches },
+      { geminiClient: mockClient },
+    );
+
+    expect(result.source).toBe("gemini");
+    expect(result.plan.totalMatchesBeforeCleanup).toBe(1);
+    expect(result.warning).toBe(payload.planningNotes);
+  });
+
   it("rejects invalid Gemini JSON schema and falls back", async () => {
     const matches = [makeMatch("crm_customers", "crm_customers_001")];
     const mockClient: GeminiClient = {

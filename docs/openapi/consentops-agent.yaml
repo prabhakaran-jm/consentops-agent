@@ -198,7 +198,7 @@ components:
           type: string
           enum:
             - mock
-            - real_configured_stub
+            - live_read_only
         modeLabel:
           type: string
         readOnlyNote:

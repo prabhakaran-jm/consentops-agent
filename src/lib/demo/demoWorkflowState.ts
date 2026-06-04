@@ -1,11 +1,12 @@
 import type { ConsentOpsAuditReport } from "@/lib/audit/auditReport";
 import type { PlannerSource } from "@/lib/agent/consentPlanner";
 import { demoSubject, demoWarehouseTables } from "@/lib/demo/seedData";
-import type { CleanupPlan, ConsentSubject, WarehouseTable } from "@/lib/warehouse/types";
+import type { CleanupPlan, ConsentSubject, DataMatch, WarehouseTable } from "@/lib/warehouse/types";
 
 type DemoWorkflowState = {
   subject: ConsentSubject;
   tables: WarehouseTable[];
+  latestScanMatches: DataMatch[] | null;
   latestPlan: CleanupPlan | null;
   latestAudit: ConsentOpsAuditReport | null;
   latestPlannerSource: PlannerSource | null;
@@ -18,9 +19,13 @@ const cloneTables = (tables: WarehouseTable[]): WarehouseTable[] =>
     records: table.records.map((record) => ({ ...record })),
   }));
 
+const cloneMatches = (matches: DataMatch[]): DataMatch[] =>
+  matches.map((match) => ({ ...match, matchedFields: [...match.matchedFields] }));
+
 const createInitialState = (): DemoWorkflowState => ({
   subject: { ...demoSubject },
   tables: cloneTables(demoWarehouseTables),
+  latestScanMatches: null,
   latestPlan: null,
   latestAudit: null,
   latestPlannerSource: null,
@@ -57,6 +62,7 @@ let state: DemoWorkflowState = createInitialState();
 export const getDemoWorkflowState = (): DemoWorkflowState => ({
   subject: { ...state.subject },
   tables: cloneTables(state.tables),
+  latestScanMatches: state.latestScanMatches ? cloneMatches(state.latestScanMatches) : null,
   latestPlan: state.latestPlan
     ? {
         ...state.latestPlan,

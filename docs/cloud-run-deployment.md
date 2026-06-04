@@ -44,7 +44,7 @@ Optional runtime variables (omit for deterministic planning and mock adapters):
 docker run --rm -p 8080:8080 \
   -e DEMO_MODE=true \
   -e CONSENTOPS_DEMO_MODE=true \
-  -e GEMINI_MODEL=gemini-2.0-flash \
+  -e GEMINI_MODEL=gemini-2.5-flash \
   consentops-agent:local
 ```
 
@@ -91,6 +91,22 @@ Public demo visitors share one in-memory state per running instance; reset/redep
 
 For production-like secrets (Gemini, Fivetran), use [Secret Manager](https://cloud.google.com/run/docs/configuring/secrets) with `--set-secrets` instead of plain env vars. Do not commit secret values to this repository.
 
+### Option C — Terraform (IaC)
+
+Declarative deploy with [infra/terraform](../../infra/terraform/README.md):
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit project_id and container_image (build/push image first)
+
+terraform init
+terraform plan
+terraform apply
+```
+
+Outputs include `cloud_run_url`. Defaults include `max_instances = 1` and optional `enable_gemini_secret` in tfvars. Secret **values** are added with `gcloud`, not committed to git.
+
 ## Environment variables
 
 | Variable | Hackathon demo | Notes |
@@ -98,7 +114,7 @@ For production-like secrets (Gemini, Fivetran), use [Secret Manager](https://clo
 | `DEMO_MODE` | `true` | Documents intended demo configuration |
 | `CONSENTOPS_DEMO_MODE` | `true` | Same reserved flag (see README) |
 | `GEMINI_API_KEY` | omit | Omit for deterministic planner |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | Optional |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Optional |
 | `FIVETRAN_API_KEY` | omit | Real adapter is stubbed |
 | `FIVETRAN_API_SECRET` | omit | Real adapter is stubbed |
 | `GOOGLE_CLOUD_PROJECT` | omit | BigQuery adapter is stubbed |
@@ -117,6 +133,53 @@ For the hackathon demo, deploy with:
 The app already uses synthetic local fixtures in `src/lib/demo/seedData.ts`. No Fivetran or BigQuery credentials are required for the default demo flow.
 
 Optional: set `GEMINI_API_KEY` via Secret Manager if you want live Gemini planning with deterministic fallback on failure.
+
+## Secret Manager for `GEMINI_API_KEY` (recommended)
+
+Use Secret Manager instead of `--set-env-vars` for the Gemini key so it never appears in the Cloud Run console env list or git.
+
+### Checklist
+
+- [ ] Enable Secret Manager API in `PROJECT_ID`
+- [ ] Create secret (example name: `GEMINI_API_KEY`):
+
+```bash
+echo -n "YOUR_GEMINI_KEY" | gcloud secrets create GEMINI_API_KEY \
+  --project PROJECT_ID \
+  --data-file=-
+```
+
+- [ ] Grant the Cloud Run **runtime service account** access:
+
+```bash
+gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+  --project PROJECT_ID \
+  --member="serviceAccount:RUNTIME_SA@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+Replace `RUNTIME_SA` with the service account your Cloud Run service uses (default compute SA or a dedicated one).
+
+- [ ] Deploy with secret reference (not plain env):
+
+```bash
+gcloud run deploy SERVICE_NAME \
+  --project PROJECT_ID \
+  --region REGION \
+  --image IMAGE:latest \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080 \
+  --max-instances=1 \
+  --set-env-vars DEMO_MODE=true,CONSENTOPS_DEMO_MODE=true,GEMINI_MODEL=gemini-2.5-flash \
+  --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest
+```
+
+- [ ] Confirm the key is **not** in: Dockerfile, git, build logs, or `gcloud run services describe` env vars (only secret references)
+- [ ] Confirm planner badge can show **Planned by Gemini** on the hosted URL after deploy
+- [ ] Screenshot Secret Manager + Cloud Run revision for submission (values blurred)
+
+**Never** commit `YOUR_GEMINI_KEY` or paste it into this repository.
 
 ## Demo state and Cloud Run scaling
 
@@ -156,4 +219,10 @@ Walk through this checklist on the hosted URL (synthetic Ana Reyes fixture):
 - [ ] Click **Execute approved cleanup** and confirm execution completes
 - [ ] Confirm an audit report appears (not merely a self-reported count)
 - [ ] Confirm the after count is based on a **live re-scan**, not a static fixture value
-- [ ] Generate a **new plan** and confirm the stale audit is cleared (audit panel returns to **No execution yet** until the next execution)
+- [ ] Confirm **Platform status** card loads on the hosted URL
+
+## Submission assets
+
+- [Demo video script](demo-video-script.md)
+- [Devpost copy](devpost-submission.md)
+- [Platform proof plan](platform-proof-plan.md)

@@ -14,7 +14,10 @@ allow_unauthenticated   = true
 max_instances           = 1
 create_artifact_registry = true
 
-# Optional: create secret resource + mount GEMINI_API_KEY (add secret VALUE via gcloud after apply)
+# Gemini via Secret Manager (two-step — see README.md in this folder):
+# enable_gemini_secret = true   # creates secret + IAM
+# mount_gemini_secret  = false  # set true after gcloud secrets versions add
 enable_gemini_secret = false
+mount_gemini_secret  = false
 gemini_secret_id     = "GEMINI_API_KEY"
-gemini_model         = "gemini-2.0-flash"
+gemini_model         = "gemini-2.5-flash"

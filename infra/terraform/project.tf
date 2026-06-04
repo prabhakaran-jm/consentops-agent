@@ -8,8 +8,9 @@ locals {
 
 check "container_image_project" {
   assert {
-    condition = !can(regex("-docker\\.pkg\\.dev/", var.container_image)) || can(
-      regex("^${regexescape(local.artifact_registry_host)}/", var.container_image)
+    condition = !strcontains(var.container_image, "-docker.pkg.dev/") || startswith(
+      var.container_image,
+      "${local.artifact_registry_host}/",
     )
     error_message = <<-EOT
       container_image must use this project's Artifact Registry host:

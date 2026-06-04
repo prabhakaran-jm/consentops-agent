@@ -53,25 +53,42 @@ docker push "$IMAGE"
 
 Set `container_image = "$IMAGE"` in `terraform.tfvars`, then `terraform apply`.
 
-## Optional Gemini secret
+## Optional Gemini secret (three-step)
+
+Cloud Run needs a secret **version**, not just an empty Secret Manager resource. Terraform never stores the key value.
 
 1. Set in `terraform.tfvars`:
 
    ```hcl
    enable_gemini_secret = true
+   mount_gemini_secret  = false
    ```
 
-2. `terraform apply` creates the secret **resource** only.
+2. `terraform apply` — creates the secret resource + IAM; Cloud Run stays on deterministic planner until step 4.
 
-3. Add the secret **value** outside Terraform (never commit the key):
+3. Add the secret **value** outside Terraform (load from `.env` first — `$GEMINI_API_KEY` must be non-empty):
 
    ```bash
+   cd ~/Projects/ConsentOps-Agent
+   set -a && source .env && set +a
+   test -n "$GEMINI_API_KEY" || echo "ERROR: GEMINI_API_KEY empty in .env"
+
    echo -n "$GEMINI_API_KEY" | gcloud secrets versions add GEMINI_API_KEY \
      --project PROJECT_ID \
      --data-file=-
    ```
 
-4. Redeploy or wait for Cloud Run to pick up `latest` (new revision may be required after first secret version).
+4. Mount on Cloud Run:
+
+   ```hcl
+   mount_gemini_secret = true
+   ```
+
+   Then `terraform apply` again (new revision picks up `GEMINI_API_KEY:latest`).
+
+### `Secret .../versions/latest was not found`
+
+You set `enable_gemini_secret = true` (or old config mounted the secret) before adding a version with `gcloud secrets versions add`. Fix: add the version (step 3), keep `mount_gemini_secret = false` until then, then set `mount_gemini_secret = true` and re-apply.
 
 ## State and secrets
 

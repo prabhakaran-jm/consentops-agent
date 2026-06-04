@@ -37,6 +37,12 @@ export function FivetranConnectorPanel({ fivetran }: Props) {
             </Badge>
           </div>
 
+          {fivetran.emptyConnectionsHint && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              {fivetran.emptyConnectionsHint}
+            </p>
+          )}
+
           <dl className="grid gap-2 text-sm sm:grid-cols-4">
             <div>
               <dt className="text-slate-500">Connections</dt>

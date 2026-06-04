@@ -183,11 +183,18 @@ export const buildGeminiPlannerPrompt = (input: PlannerInput): string => {
     "- Human approval is required before any cleanup executes.",
     "- Do not claim GDPR compliance, legal proof, or forensic certainty.",
     "- Identify blocked actions explicitly in blockedActions.",
+    `- totalMatchesBeforeCleanup MUST equal ${input.matches.length} (one action per match).`,
     "",
     `Subject: ${JSON.stringify(input.subject)}`,
     `Matches: ${JSON.stringify(matchSummary)}`,
   ].join("\n");
 };
+
+/** Gemini often miscounts; actions are authoritative for safety checks. */
+export const withAuthoritativeMatchCount = (plan: CleanupPlan, matchCount: number): CleanupPlan => ({
+  ...plan,
+  totalMatchesBeforeCleanup: matchCount,
+});
 
 export const validateCleanupPlanSafety = (
   plan: CleanupPlan,
@@ -271,12 +278,13 @@ export const parseGeminiPlannerResponse = (
     return { ok: false, reason: "Gemini plan subjectId does not match request subject." };
   }
 
-  const safety = validateCleanupPlanSafety(schemaResult.data.plan, input.matches);
+  const plan = withAuthoritativeMatchCount(schemaResult.data.plan, input.matches.length);
+  const safety = validateCleanupPlanSafety(plan, input.matches);
   if (!safety.ok) {
     return { ok: false, reason: safety.reason };
   }
 
-  return { ok: true, value: schemaResult.data };
+  return { ok: true, value: { ...schemaResult.data, plan } };
 };
 
 const deterministicResult = (
