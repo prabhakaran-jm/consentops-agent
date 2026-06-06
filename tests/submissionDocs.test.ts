@@ -23,6 +23,16 @@ describe("submission docs", () => {
     expect(devpost).toMatch(/Option 1 MCP.*primary/i);
   });
 
+  it("agent builder setup doc wires chat front-end to read-only plan API", () => {
+    const guide = readFileSync(resolve(process.cwd(), "docs/agent-builder-setup.md"), "utf8");
+    expect(guide).toMatch(/Agent Builder/i);
+    expect(guide).toMatch(/consentOpsScanAndPlan|consentOps_scan_and_plan/i);
+    expect(guide).toMatch(/POST \/api\/agent\/plan|api\/agent\/plan/i);
+    expect(guide).toMatch(/approve.*execute|Execute approved cleanup/i);
+    expect(guide).toMatch(/What stays out of Agent Builder|execution stays in the web UI/i);
+    expect(guide).toMatch(/POST \/api\/execute.*Human approval|Human approval gate/i);
+  });
+
   it("cloud run doc includes Secret Manager checklist", () => {
     expect(cloudRun).toMatch(/Secret Manager for `GEMINI_API_KEY`/);
     expect(cloudRun).toMatch(/--set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest/);

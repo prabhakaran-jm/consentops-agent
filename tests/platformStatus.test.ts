@@ -12,6 +12,7 @@ describe("platform status", () => {
     GEMINI_MODEL: process.env.GEMINI_MODEL,
     FIVETRAN_API_KEY: process.env.FIVETRAN_API_KEY,
     FIVETRAN_API_SECRET: process.env.FIVETRAN_API_SECRET,
+    FIVETRAN_MCP_RUNTIME: process.env.FIVETRAN_MCP_RUNTIME,
     GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT,
     BIGQUERY_DATASET: process.env.BIGQUERY_DATASET,
     CONSENTOPS_WAREHOUSE_MODE: process.env.CONSENTOPS_WAREHOUSE_MODE,
@@ -25,6 +26,7 @@ describe("platform status", () => {
     delete process.env.GEMINI_MODEL;
     delete process.env.FIVETRAN_API_KEY;
     delete process.env.FIVETRAN_API_SECRET;
+    delete process.env.FIVETRAN_MCP_RUNTIME;
     delete process.env.GOOGLE_CLOUD_PROJECT;
     delete process.env.BIGQUERY_DATASET;
     delete process.env.CONSENTOPS_WAREHOUSE_MODE;
@@ -88,6 +90,18 @@ describe("platform status", () => {
     expect(status.adapters.warehouse).toBe("bigquery_full");
     expect(status.adapters.warehouseScanSource).toBe("bigquery");
     expect(status.adapters.warehouseExecution).toBe("bigquery");
+  });
+
+  it("reports mcp_runtime when FIVETRAN_MCP_RUNTIME and credentials are set", () => {
+    process.env.FIVETRAN_MCP_RUNTIME = "true";
+    process.env.FIVETRAN_API_KEY = "plant-fivetran-key";
+    process.env.FIVETRAN_API_SECRET = "plant-fivetran-secret";
+
+    const status = getPlatformStatus();
+
+    expect(status.adapters.fivetranIntegrationSource).toBe("mcp_runtime");
+    expect(status.adapters.fivetranPanelMode).toBe("mcp_runtime");
+    expect(status.adapters.fivetranMcpRuntimeEnabled).toBe(true);
   });
 
   it("reflects last planner source after buildDemoPlan", async () => {
