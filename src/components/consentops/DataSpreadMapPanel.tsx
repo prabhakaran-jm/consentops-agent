@@ -1,94 +1,123 @@
+import { CheckCircle } from "lucide-react";
+
 import type { DataSpreadMap } from "@/lib/warehouse/localWarehouse";
 import type { DataMatch } from "@/lib/warehouse/types";
-import { MATCH_FIELDS } from "@/lib/warehouse/types";
 
-import { Badge, Panel } from "./ui";
+import { Badge, DensityBar, PrimaryButton, StepPanel } from "./ui";
 
 type Props = {
   spreadMap: Partial<DataSpreadMap> | null;
   matches: DataMatch[] | null;
   beforeCount: number | null;
+  onGenerate?: () => void;
+  loadingPlan?: boolean;
+  canGenerate?: boolean;
 };
 
-function countIdentifierTypes(matches: DataMatch[]) {
-  let withDirect = 0;
-  let withHashedEmail = 0;
-  for (const match of matches) {
-    const hasDirect =
-      match.matchedFields.includes(MATCH_FIELDS.email) ||
-      match.matchedFields.includes(MATCH_FIELDS.phone) ||
-      match.matchedFields.includes(MATCH_FIELDS.customerId);
-    const hasHashed = match.matchedFields.includes(MATCH_FIELDS.emailSha256);
-    if (hasDirect) withDirect += 1;
-    if (hasHashed) withHashedEmail += 1;
-  }
-  return { withDirect, withHashedEmail };
+function tableStatus(total: number, high: number, medium: number): { label: string; tone: "success" | "warning" | "neutral" } {
+  if (total === 0) return { label: "Clear", tone: "neutral" };
+  if (medium > high) return { label: "Warning", tone: "warning" };
+  return { label: "Healthy", tone: "success" };
 }
 
-export function DataSpreadMapPanel({ spreadMap, matches, beforeCount }: Props) {
+export function DataSpreadMapPanel({
+  spreadMap,
+  matches,
+  beforeCount,
+  onGenerate,
+  loadingPlan,
+  canGenerate,
+}: Props) {
   if (!spreadMap || !matches || beforeCount === null) {
     return (
-      <Panel title="Data spread map" step={3}>
-        <p className="text-sm text-slate-500">Run a scan to see where subject data appears.</p>
-      </Panel>
+      <StepPanel id="step-3" step={3} title="Data Spread Map">
+        <p className="text-[13px] text-cops-on-surface-variant">Run a scan to see where subject data appears.</p>
+      </StepPanel>
     );
   }
 
-  const { withDirect, withHashedEmail } = countIdentifierTypes(matches);
-  const entries = Object.entries(spreadMap).filter(([, row]) => row && row.totalMatches > 0);
-
-  let highTotal = 0;
-  let mediumTotal = 0;
-  for (const [, row] of entries) {
-    if (!row) continue;
-    highTotal += row.highConfidenceMatches;
-    mediumTotal += row.mediumConfidenceMatches;
-  }
-
-  const showMedium = mediumTotal > 0;
+  const entries = Object.entries(spreadMap).sort((a, b) => (b[1]?.totalMatches ?? 0) - (a[1]?.totalMatches ?? 0));
+  const maxMatches = Math.max(...entries.map(([, row]) => row?.totalMatches ?? 0), 1);
+  const tablesWithData = entries.filter(([, row]) => (row?.totalMatches ?? 0) > 0).length;
 
   return (
-    <Panel title="Data spread map" step={3}>
-      <p className="text-sm text-slate-600">
-        {withDirect} records with direct identifiers and {withHashedEmail} records also matched by
-        hashed email. These categories can overlap and do not need to sum to {beforeCount} total
-        records.
-      </p>
-
-      <div className="flex flex-wrap gap-2">
-        <Badge tone="info">{beforeCount} records found</Badge>
-        <Badge tone="neutral">{withDirect} records with direct identifiers</Badge>
-        <Badge tone="neutral">{withHashedEmail} records also matched by hashed email</Badge>
-        <Badge tone="success">{highTotal} high confidence</Badge>
-        {showMedium && <Badge tone="warning">{mediumTotal} medium confidence</Badge>}
-      </div>
-
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+    <StepPanel
+      id="step-3"
+      step={3}
+      title="Data Spread Map"
+      bodyClassName="p-0"
+      headerRight={
+        <Badge tone="success">
+          <CheckCircle className="mr-1 inline h-3 w-3" aria-hidden />
+          Scan Complete
+        </Badge>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left text-[13px]">
+          <thead className="border-b border-cops-outline-variant bg-cops-surface font-mono text-[11px] uppercase tracking-wider text-cops-outline">
             <tr>
-              <th className="px-4 py-2">Table</th>
-              <th className="px-4 py-2">Matches</th>
-              <th className="px-4 py-2">Direct</th>
-              <th className="px-4 py-2">Hashed email</th>
-              <th className="px-4 py-2">High</th>
-              {showMedium && <th className="px-4 py-2">Medium</th>}
+              <th className="px-6 py-3 font-medium">Warehouse table</th>
+              <th className="px-6 py-3 font-medium">Records</th>
+              <th className="px-6 py-3 font-medium">Density</th>
+              <th className="px-6 py-3 font-medium">Confidence</th>
+              <th className="px-6 py-3 font-medium">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {entries.map(([table, row]) => (
-              <tr key={table}>
-                <td className="px-4 py-2 font-mono text-slate-800">{table}</td>
-                <td className="px-4 py-2">{row!.totalMatches}</td>
-                <td className="px-4 py-2">{row!.directIdentifierMatches}</td>
-                <td className="px-4 py-2">{row!.derivedIdentifierMatches}</td>
-                <td className="px-4 py-2">{row!.highConfidenceMatches}</td>
-                {showMedium && <td className="px-4 py-2">{row!.mediumConfidenceMatches}</td>}
-              </tr>
-            ))}
+          <tbody className="divide-y divide-cops-outline-variant">
+            {entries.map(([table, row]) => {
+              if (!row) return null;
+              const status = tableStatus(row.totalMatches, row.highConfidenceMatches, row.mediumConfidenceMatches);
+              const warnRow = status.tone === "warning" && row.totalMatches > 0;
+              return (
+                <tr
+                  key={table}
+                  className={`transition-colors hover:bg-cops-surface-container-low ${
+                    warnRow ? "bg-cops-error-container/20" : ""
+                  }`}
+                >
+                  <td className="px-6 py-4">
+                    <span className="font-mono font-medium text-cops-primary">{table}</span>
+                  </td>
+                  <td className={`px-6 py-4 font-mono ${warnRow ? "font-medium text-cops-error" : ""}`}>
+                    {row.totalMatches} record{row.totalMatches === 1 ? "" : "s"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <DensityBar
+                      value={row.totalMatches}
+                      max={maxMatches}
+                      tone={warnRow ? "error" : "secondary"}
+                    />
+                  </td>
+                  <td className="px-6 py-4 font-mono text-cops-on-surface-variant">
+                    {row.highConfidenceMatches}H / {row.mediumConfidenceMatches}M
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-    </Panel>
+      <div className="flex flex-col items-start justify-between gap-3 border-t border-cops-outline-variant bg-cops-surface-container-low p-4 sm:flex-row sm:items-center">
+        <p className="text-[13px] text-cops-on-surface-variant">
+          Total instances found:{" "}
+          <strong className="font-mono text-cops-primary">{beforeCount}</strong> across{" "}
+          <strong className="font-mono text-cops-primary">{tablesWithData}</strong> tables.
+        </p>
+        {onGenerate && (
+          <PrimaryButton
+            variant="outline"
+            onClick={onGenerate}
+            loading={loadingPlan}
+            disabled={!canGenerate}
+          >
+            Generate cleanup plan
+          </PrimaryButton>
+        )}
+      </div>
+    </StepPanel>
   );
 }

@@ -9,10 +9,11 @@ import type { CleanupPlan, ConsentSubject } from "@/lib/warehouse/types";
 import { ApprovalPanel } from "./ApprovalPanel";
 import { AuditReportPanel } from "./AuditReportPanel";
 import { CleanupPlanPanel } from "./CleanupPlanPanel";
+import { DashboardSidebar } from "./DashboardSidebar";
 import { DataSpreadMapPanel } from "./DataSpreadMapPanel";
 import { DeletionRequestCard } from "./DeletionRequestCard";
 import { FivetranConnectorPanel } from "./FivetranConnectorPanel";
-import { PlatformStatusPanel } from "./PlatformStatusPanel";
+import { HumanInLoopBanner, PlatformStatusPanel } from "./PlatformStatusPanel";
 import type {
   AuditResponse,
   ExecuteResponse,
@@ -151,6 +152,7 @@ export function ConsentOpsDashboard() {
       setSelectedIds(new Set());
       setExecutionCompleted(true);
       await refreshPlatformStatus();
+      document.getElementById("step-6")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Execution failed");
     } finally {
@@ -176,67 +178,103 @@ export function ConsentOpsDashboard() {
   const auditReport = audit.status === "ok" ? audit.audit : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10 sm:px-10">
-      <header className="space-y-2 border-b border-slate-200 pb-8">
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-          Hackathon demo · synthetic data only
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-          ConsentOps Agent
-        </h1>
-        <p className="max-w-2xl text-slate-600">
-          Trace personal data across pipelines, approve cleanup, and produce a demo audit report.
-        </p>
-      </header>
+    <div className="flex min-h-screen bg-cops-surface">
+      <DashboardSidebar onScan={handleScan} scanning={loadingScan} />
 
-      <PlatformStatusPanel status={platformStatus} loading={loadingStatus} />
+      <main className="flex min-h-screen flex-1 flex-col lg:ml-64">
+        <div className="mx-auto w-full max-w-7xl flex-1 space-y-8 p-4 sm:p-8">
+          <div className="flex flex-col justify-between gap-4 border-b border-cops-outline-variant pb-6 md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-cops-outline">
+                Hackathon demo · synthetic data only
+              </p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-cops-primary sm:text-4xl">
+                ConsentOps Agent
+              </h1>
+              <p className="mt-2 max-w-2xl text-[14px] text-cops-on-surface-variant">
+                Orchestrating right-to-be-forgotten requests across connected data ecosystems. Human-in-the-loop
+                required for final deletion execution.
+              </p>
+            </div>
+            <PlatformStatusPanel status={platformStatus} loading={loadingStatus} compact />
+          </div>
 
-      {error && (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-          role="alert"
-        >
-          {error}
+          {error && (
+            <div
+              className="rounded-lg border border-[#FAD2CF] bg-[#FCE8E6] px-4 py-3 text-[13px] text-cops-on-error-container"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
+          <details className="rounded-lg border border-cops-outline-variant bg-cops-surface-container-lowest">
+            <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-cops-secondary">
+              Full platform status (judges)
+            </summary>
+            <div className="border-t border-cops-outline-variant p-2">
+              <PlatformStatusPanel status={platformStatus} loading={loadingStatus} />
+            </div>
+          </details>
+
+          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
+            <div className="space-y-8 xl:col-span-8">
+              <DeletionRequestCard
+                subject={subject}
+                onScan={handleScan}
+                loading={loadingScan}
+                scanned={Boolean(scan)}
+              />
+              <DataSpreadMapPanel
+                spreadMap={scan?.spreadMap ?? null}
+                matches={scan?.matches ?? null}
+                beforeCount={scan?.beforeCount ?? null}
+                onGenerate={handleGeneratePlan}
+                loadingPlan={loadingPlan}
+                canGenerate={Boolean(scan)}
+              />
+              <CleanupPlanPanel
+                plan={plan}
+                provenance={planProvenance}
+                onGenerate={handleGeneratePlan}
+                loading={loadingPlan}
+                canGenerate={Boolean(scan)}
+                geminiModel={platformStatus?.gemini.model}
+              />
+              <ApprovalPanel
+                plan={plan}
+                selectedIds={selectedIds}
+                onToggle={toggleAction}
+                onSelectAll={selectAll}
+                onClear={() => setSelectedIds(new Set())}
+                onExecute={handleExecute}
+                loading={loadingExecute}
+                executionCompleted={executionCompleted}
+              />
+              <AuditReportPanel audit={auditReport} pending={auditPending} />
+            </div>
+
+            <div className="space-y-6 xl:col-span-4 xl:sticky xl:top-8">
+              <FivetranConnectorPanel fivetran={scan?.fivetran ?? null} />
+              <HumanInLoopBanner />
+            </div>
+          </div>
         </div>
-      )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <DeletionRequestCard
-          subject={subject}
-          onScan={handleScan}
-          loading={loadingScan}
-          scanned={Boolean(scan)}
-        />
-        <FivetranConnectorPanel fivetran={scan?.fivetran ?? null} />
-      </div>
-
-      <DataSpreadMapPanel
-        spreadMap={scan?.spreadMap ?? null}
-        matches={scan?.matches ?? null}
-        beforeCount={scan?.beforeCount ?? null}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CleanupPlanPanel
-          plan={plan}
-          provenance={planProvenance}
-          onGenerate={handleGeneratePlan}
-          loading={loadingPlan}
-          canGenerate={Boolean(scan)}
-        />
-        <ApprovalPanel
-          plan={plan}
-          selectedIds={selectedIds}
-          onToggle={toggleAction}
-          onSelectAll={selectAll}
-          onClear={() => setSelectedIds(new Set())}
-          onExecute={handleExecute}
-          loading={loadingExecute}
-          executionCompleted={executionCompleted}
-        />
-      </div>
-
-      <AuditReportPanel audit={auditReport} pending={auditPending} />
+        <footer className="mt-auto border-t border-cops-outline-variant bg-cops-surface-container-lowest py-6">
+          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-8">
+            <p className="font-mono text-xs text-cops-on-surface-variant">
+              © {new Date().getFullYear()} ConsentOps Agent — Technical precision &amp; transparency
+            </p>
+            <div className="flex gap-6 font-mono text-xs text-cops-on-surface-variant">
+              <a href="/api/status" className="hover:text-cops-primary hover:underline">
+                System status
+              </a>
+              <span>Synthetic demo only</span>
+            </div>
+          </div>
+        </footer>
+      </main>
     </div>
   );
 }

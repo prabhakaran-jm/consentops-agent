@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --cops-surface: #f8f9ff;
+  --cops-surface-container-low: #eff4ff;
+  --cops-surface-container-lowest: #ffffff;
+  --cops-surface-container: #e5eeff;
+  --cops-surface-container-high: #dce9ff;
+  --cops-surface-variant: #d3e4fe;
+  --cops-on-surface: #0b1c30;
+  --cops-on-surface-variant: #45464d;
+  --cops-outline: #76777d;
+  --cops-outline-variant: #c6c6cd;
+  --cops-primary: #000000;
+  --cops-on-primary: #ffffff;
+  --cops-primary-container: #131b2e;
+  --cops-on-primary-container: #7c839b;
+  --cops-secondary: #006398;
+  --cops-on-secondary: #ffffff;
+  --cops-secondary-container: #5bb8fe;
+  --cops-on-secondary-container: #00476e;
+  --cops-tertiary-container: #002113;
+  --cops-on-tertiary-container: #009668;
+  --cops-tertiary-fixed-dim: #4edea3;
+  --cops-error: #ba1a1a;
+  --cops-on-error-container: #93000a;
+  --cops-error-container: #ffdad6;
+  --cops-inverse-on-surface: #eaf1ff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-cops-surface: var(--cops-surface);
+  --color-cops-surface-container-low: var(--cops-surface-container-low);
+  --color-cops-surface-container-lowest: var(--cops-surface-container-lowest);
+  --color-cops-surface-container: var(--cops-surface-container);
+  --color-cops-surface-container-high: var(--cops-surface-container-high);
+  --color-cops-surface-variant: var(--cops-surface-variant);
+  --color-cops-on-surface: var(--cops-on-surface);
+  --color-cops-on-surface-variant: var(--cops-on-surface-variant);
+  --color-cops-outline: var(--cops-outline);
+  --color-cops-outline-variant: var(--cops-outline-variant);
+  --color-cops-primary: var(--cops-primary);
+  --color-cops-on-primary: var(--cops-on-primary);
+  --color-cops-primary-container: var(--cops-primary-container);
+  --color-cops-on-primary-container: var(--cops-on-primary-container);
+  --color-cops-secondary: var(--cops-secondary);
+  --color-cops-on-secondary: var(--cops-on-secondary);
+  --color-cops-secondary-container: var(--cops-secondary-container);
+  --color-cops-on-secondary-container: var(--cops-on-secondary-container);
+  --color-cops-tertiary-container: var(--cops-tertiary-container);
+  --color-cops-on-tertiary-container: var(--cops-on-tertiary-container);
+  --color-cops-tertiary-fixed-dim: var(--cops-tertiary-fixed-dim);
+  --color-cops-error: var(--cops-error);
+  --color-cops-on-error-container: var(--cops-on-error-container);
+  --color-cops-error-container: var(--cops-error-container);
+  --color-cops-inverse-on-surface: var(--cops-inverse-on-surface);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--cops-surface);
+  color: var(--cops-on-surface);
+  font-family: var(--font-sans);
 }

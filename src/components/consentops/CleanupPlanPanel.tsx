@@ -1,29 +1,22 @@
-import { ClipboardList, ShieldBan, Sparkles } from "lucide-react";
+import { Bot, CheckCircle, ClipboardList, Info, ShieldBan, Sparkles } from "lucide-react";
 
 import type { CleanupAction, CleanupPlan } from "@/lib/warehouse/types";
 
 import type { PlanProvenance } from "./types";
-import { Badge, Panel, PrimaryButton } from "./ui";
+import { Badge, PrimaryButton, StepPanel } from "./ui";
 
 const BLOCKED_POLICIES = [
-  "Delete on payments_transactions is forbidden (retain-only).",
-  "Anonymize on payments_transactions is forbidden (retain-only).",
-  "Table-wide or wildcard record targeting is blocked.",
-  "Destructive actions require explicit approval before execution.",
+  "No cleanup execution without explicit human approval.",
+  "No table-wide deletion or wildcard record targeting.",
+  "No deletion or anonymization on payments_transactions (retain-only).",
+  "No unapproved action may be executed.",
 ];
 
-function riskForAction(action: CleanupAction): { label: string; tone: "danger" | "warning" | "success" | "info" } {
-  switch (action.classification) {
-    case "delete":
-      return { label: "High", tone: "danger" };
-    case "anonymize":
-      return { label: "Medium", tone: "warning" };
-    case "review":
-      return { label: "Review", tone: "info" };
-    case "retain":
-      return { label: "Retain", tone: "success" };
-  }
-}
+const SAFETY_CHECKS = [
+  { title: "Record-scoped actions only", detail: "Every action targets explicit record IDs — no table-wide cleanup." },
+  { title: "Financial retention rules", detail: "payments_transactions is retain-only; deletes blocked." },
+  { title: "Approval gate enforced", detail: "Execution requires explicit human approval in Step 5." },
+];
 
 function classificationTone(c: CleanupAction["classification"]): "danger" | "warning" | "success" | "info" {
   if (c === "delete") return "danger";
@@ -38,9 +31,17 @@ type Props = {
   onGenerate: () => void;
   loading: boolean;
   canGenerate: boolean;
+  geminiModel?: string | null;
 };
 
-export function CleanupPlanPanel({ plan, provenance, onGenerate, loading, canGenerate }: Props) {
+export function CleanupPlanPanel({
+  plan,
+  provenance,
+  onGenerate,
+  loading,
+  canGenerate,
+  geminiModel,
+}: Props) {
   const counts = plan
     ? {
         delete: plan.actions.filter((a) => a.classification === "delete").length,
@@ -51,89 +52,99 @@ export function CleanupPlanPanel({ plan, provenance, onGenerate, loading, canGen
     : null;
 
   return (
-    <Panel title="Cleanup plan" step={4}>
-      <p className="text-sm text-slate-600">
-        Every action targets explicit record IDs — no table-wide cleanup. Gemini is advisory only;
-        plans must pass deterministic safety validation (synthetic demo data).
-      </p>
-      <PrimaryButton onClick={onGenerate} loading={loading} disabled={!canGenerate}>
-        <ClipboardList className="h-4 w-4" aria-hidden />
-        Generate cleanup plan
-      </PrimaryButton>
-
+    <StepPanel id="step-4" step={4} title="Cleanup Plan Generation">
       {!plan ? (
-        <p className="text-sm text-slate-500">Scan first, then generate a classified plan.</p>
+        <div className="space-y-4">
+          <p className="text-[13px] text-cops-on-surface-variant">
+            Scan first, then generate a classified cleanup plan. Gemini is advisory; deterministic safety rules
+            always override.
+          </p>
+          <PrimaryButton onClick={onGenerate} loading={loading} disabled={!canGenerate}>
+            <ClipboardList className="h-4 w-4" aria-hidden />
+            Generate cleanup plan
+          </PrimaryButton>
+        </div>
       ) : (
-        <>
-          {provenance && (
-            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {provenance.source === "gemini" ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="rounded-lg border border-cops-outline-variant bg-cops-surface-container-low p-4">
+              <div className="mb-4 flex items-center justify-between border-b border-cops-outline-variant pb-2">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-cops-secondary" aria-hidden />
+                  <h4 className="text-sm font-semibold">Planned by Gemini (Advisory)</h4>
+                </div>
+                <span className="rounded bg-cops-surface-container-high px-2 py-0.5 font-mono text-[10px] text-cops-on-surface-variant">
+                  {geminiModel ?? "gemini-3.5-flash"}
+                </span>
+              </div>
+              <div className="mb-3 flex flex-wrap gap-2">
+                {provenance?.source === "gemini" ? (
                   <Badge tone="info">
                     <Sparkles className="mr-1 inline h-3 w-3" aria-hidden />
-                    Planned by Gemini
+                    Gemini planner
                   </Badge>
                 ) : (
-                  <Badge tone="neutral">Deterministic fallback planner</Badge>
+                  <Badge tone="neutral">Deterministic fallback</Badge>
                 )}
+                <Badge tone="danger">delete: {counts!.delete}</Badge>
+                <Badge tone="warning">anonymize: {counts!.anonymize}</Badge>
+                <Badge tone="success">retain: {counts!.retain}</Badge>
+                <Badge tone="info">review: {counts!.review}</Badge>
               </div>
-              {provenance.warning && (
-                <p className="text-xs text-amber-800" role="status">
+              {provenance?.warning && (
+                <p className="mb-3 rounded border border-[#FAD2CF] bg-[#FCE8E6] px-3 py-2 text-xs text-cops-on-error-container">
                   {provenance.warning}
                 </p>
               )}
+              <div className="max-h-64 overflow-y-auto rounded border border-cops-outline-variant">
+                <ul className="divide-y divide-cops-outline-variant text-[13px]">
+                  {plan.actions.map((action) => (
+                    <li key={action.id} className="space-y-1 px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[10px] text-cops-on-surface-variant">{action.id}</span>
+                        <Badge tone={classificationTone(action.classification)}>{action.classification}</Badge>
+                      </div>
+                      <p className="font-mono text-cops-primary">
+                        {action.table} → {action.recordIds.join(", ")}
+                      </p>
+                      {action.retainReason && (
+                        <p className="text-xs text-cops-on-error-container">Reason: {action.retainReason}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <Badge tone="danger">delete: {counts!.delete}</Badge>
-            <Badge tone="warning">anonymize: {counts!.anonymize}</Badge>
-            <Badge tone="success">retain: {counts!.retain}</Badge>
-            <Badge tone="info">review: {counts!.review}</Badge>
-            <Badge tone="neutral">{plan.actions.length} record-scoped actions</Badge>
           </div>
 
-          <div className="max-h-80 overflow-y-auto rounded-lg border border-slate-200">
-            <ul className="divide-y divide-slate-100 text-sm">
-              {plan.actions.map((action) => {
-                const risk = riskForAction(action);
-                return (
-                  <li key={action.id} className="space-y-1 px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-slate-500">{action.id}</span>
-                      <Badge tone={classificationTone(action.classification)}>
-                        {action.classification}
-                      </Badge>
-                      <Badge tone={risk.tone}>Risk: {risk.label}</Badge>
-                    </div>
-                    <p className="font-mono text-slate-800">
-                      {action.table} → {action.recordIds.join(", ")}
-                    </p>
-                    <p className="text-xs text-slate-500">Fields: {action.fields.join(", ")}</p>
-                    {action.retainReason && (
-                      <p className="text-xs text-amber-800">Reason: {action.retainReason}</p>
-                    )}
-                  </li>
-                );
-              })}
+          <div className="rounded-lg border border-cops-outline-variant border-l-4 border-l-cops-on-tertiary-container bg-cops-surface-container-lowest p-4 shadow-inner">
+            <div className="mb-4 flex items-center gap-2 border-b border-cops-outline-variant pb-2">
+              <ShieldBan className="h-4 w-4 text-cops-on-tertiary-container" aria-hidden />
+              <h4 className="text-sm font-semibold">Deterministic Safety Validation</h4>
+            </div>
+            <ul className="space-y-4">
+              {SAFETY_CHECKS.map((check) => (
+                <li key={check.title} className="flex gap-3">
+                  <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-cops-on-tertiary-container" aria-hidden />
+                  <div>
+                    <p className="text-[13px] font-semibold">{check.title}</p>
+                    <p className="mt-1 font-mono text-[10px] text-cops-on-surface-variant">{check.detail}</p>
+                  </div>
+                </li>
+              ))}
+              <li className="mt-4 flex gap-3 rounded border border-cops-outline-variant bg-cops-surface-container-high p-3">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-cops-secondary" aria-hidden />
+                <p className="text-[13px]">Rule sets strictly override advisory AI planning.</p>
+              </li>
+            </ul>
+            <ul className="mt-4 space-y-1 border-t border-cops-outline-variant pt-3 text-[11px] text-cops-on-surface-variant">
+              {(provenance?.blockedActions.length ? provenance.blockedActions : BLOCKED_POLICIES).map((line) => (
+                <li key={line}>• {line}</li>
+              ))}
             </ul>
           </div>
-
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="flex items-center gap-2 text-sm font-medium text-slate-800">
-              <ShieldBan className="h-4 w-4" aria-hidden />
-              Blocked by safety policy
-            </p>
-            <ul className="mt-2 list-inside list-disc text-xs text-slate-600">
-              {(provenance?.blockedActions.length ? provenance.blockedActions : BLOCKED_POLICIES).map(
-                (line) => (
-                  <li key={line}>{line}</li>
-                ),
-              )}
-            </ul>
-          </div>
-        </>
+        </div>
       )}
-    </Panel>
+    </StepPanel>
   );
 }

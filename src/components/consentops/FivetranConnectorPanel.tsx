@@ -1,9 +1,9 @@
-import { AlertTriangle, Cable, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Cable, History, ShieldCheck } from "lucide-react";
 
 import { FIVETRAN_DEMO_NARRATIVE } from "@/lib/connectors/fivetranAdapter";
 import type { FivetranConnectorPanelData } from "@/lib/connectors/fivetranPanelData";
 
-import { Badge, formatIsoTime, Panel } from "./ui";
+import { Badge, formatRelativeTime, StepPanel } from "./ui";
 
 type Props = {
   fivetran: FivetranConnectorPanelData | null;
@@ -17,93 +17,95 @@ function healthTone(
   return "danger";
 }
 
+function connectorAbbr(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0]!.slice(0, 1) + parts[1]!.slice(0, 1)).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 export function FivetranConnectorPanel({ fivetran }: Props) {
   return (
-    <Panel title="Fivetran connectors (read-only status)" step={2}>
-      <div className="flex gap-3 rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-sky-950">
-        <Cable className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" aria-hidden />
-        <p>{FIVETRAN_DEMO_NARRATIVE}</p>
-      </div>
-
+    <StepPanel id="step-2" step={2} title="Active Connectors" bodyClassName="p-4">
       {!fivetran ? (
-        <p className="text-sm text-slate-500">Run a scan to load connector status.</p>
+        <p className="text-[13px] text-cops-on-surface-variant">Run a scan to load connector status.</p>
       ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{fivetran.modeLabel}</Badge>
-            <Badge tone="info">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 px-2">
+            <Badge tone="info">{fivetran.modeLabel}</Badge>
+            <Badge tone="neutral">
               <ShieldCheck className="mr-1 inline h-3 w-3" aria-hidden />
               {fivetran.readOnlyNote}
             </Badge>
           </div>
 
           {fivetran.emptyConnectionsHint && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <p className="mx-2 rounded-lg border border-[#FAD2CF] bg-[#FCE8E6] px-3 py-2 text-[13px] text-cops-on-error-container">
               {fivetran.emptyConnectionsHint}
             </p>
           )}
 
-          <dl className="grid gap-2 text-sm sm:grid-cols-4">
-            <div>
-              <dt className="text-slate-500">Connections</dt>
-              <dd className="font-medium text-slate-900">{fivetran.connectionCount}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Healthy</dt>
-              <dd className="font-medium text-emerald-700">{fivetran.healthSummary.healthy}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Warning</dt>
-              <dd className="font-medium text-amber-700">{fivetran.healthSummary.warning}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Offline</dt>
-              <dd className="font-medium text-slate-700">{fivetran.healthSummary.offline}</dd>
-            </div>
-          </dl>
-
-          <ul className="space-y-3">
-            {fivetran.connectors.map((connector) => (
-              <li
+          {fivetran.connectors.map((connector) => {
+            const warning = connector.health === "warning";
+            return (
+              <div
                 key={connector.displayKey}
-                className={`rounded-lg border p-4 ${
-                  connector.health === "warning"
-                    ? "border-amber-300 bg-amber-50"
-                    : "border-slate-200 bg-slate-50"
+                className={`relative overflow-hidden rounded border p-3 ${
+                  warning
+                    ? "border-cops-error/50 bg-[#FFF8F7] shadow-[0_0_10px_rgba(186,26,26,0.05)]"
+                    : "border-cops-outline-variant bg-cops-surface hover:border-cops-secondary"
                 }`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-slate-900">{connector.name}</p>
-                    <p className="font-mono text-xs text-slate-500">{connector.displayKey}</p>
-                    <p className="text-xs text-slate-500">
-                      {connector.source} → {connector.destination}
-                    </p>
+                <div
+                  className={`absolute bottom-0 right-0 top-0 w-1 ${
+                    warning ? "bg-cops-error" : "bg-cops-on-tertiary-container"
+                  }`}
+                />
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded border border-cops-outline-variant bg-cops-surface-container-high font-mono text-[11px] font-bold text-cops-secondary">
+                      {connectorAbbr(connector.name)}
+                    </div>
+                    <div>
+                      <h3 className="text-[13px] font-semibold leading-tight text-cops-primary">
+                        {connector.name}
+                      </h3>
+                      <p className="font-mono text-[10px] text-cops-on-surface-variant">
+                        {connector.source} → {connector.destination}
+                      </p>
+                    </div>
                   </div>
                   <Badge tone={healthTone(connector.health)}>
-                    {connector.health === "warning" && (
-                      <AlertTriangle className="mr-1 inline h-3 w-3" aria-hidden />
-                    )}
+                    {warning && <AlertTriangle className="mr-1 inline h-3 w-3" aria-hidden />}
                     {connector.health}
                   </Badge>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">
-                  Last sync: {formatIsoTime(connector.lastSyncedAtIso)} ({connector.lastSyncStatus})
-                </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  Mapped tables:{" "}
-                  <span className="font-mono text-slate-700">{connector.mappedTables.join(", ")}</span>
-                </p>
-                {connector.health === "warning" && (
-                  <p className="mt-2 text-sm font-medium text-amber-900">
-                    Warning: last sync failed — support tickets may be stale in the warehouse.
+                <div className="mt-3 flex items-end justify-between border-t border-cops-outline-variant pt-2">
+                  <span className="font-mono text-[11px] text-cops-on-surface-variant">
+                    {connector.mappedTables.length} target
+                    {connector.mappedTables.length === 1 ? "" : "s"}
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] text-cops-outline">
+                    <History className="h-3 w-3" aria-hidden />
+                    Scanned {formatRelativeTime(connector.lastSyncedAtIso)}
+                  </span>
+                </div>
+                {warning && (
+                  <p className="mt-2 text-[12px] font-medium text-cops-on-error-container">
+                    Last sync failed — warehouse data may be stale.
                   </p>
                 )}
-              </li>
-            ))}
-          </ul>
-        </>
+              </div>
+            );
+          })}
+
+          {fivetran.connectors.length === 0 && (
+            <div className="flex gap-2 rounded border border-cops-outline-variant bg-cops-surface-container-low p-3 text-[13px] text-cops-on-surface-variant">
+              <Cable className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              {FIVETRAN_DEMO_NARRATIVE}
+            </div>
+          )}
+        </div>
       )}
-    </Panel>
+    </StepPanel>
   );
 }
