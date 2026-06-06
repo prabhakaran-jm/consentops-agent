@@ -55,7 +55,7 @@ The agent proposes and coordinates; **humans approve**. Nothing destructive runs
 | **Gemini** | Optional cleanup planning via `GEMINI_API_KEY`; deterministic fallback when absent or on failure | Implemented |
 | **Cloud Run** | Container deployment for hosted demos | Documented ([deployment guide](docs/cloud-run-deployment.md)); [Terraform IaC](infra/terraform/README.md) |
 | **Platform status** | `GET /api/status` — planner mode, adapter modes (no secrets) | Implemented |
-| **Agent tool API** | `POST /api/agent/plan` — scan + plan only ([OpenAPI](docs/openapi/consentops-agent.yaml)) | Implemented |
+| **Agent tool API** | `POST /api/agent/plan` — scan + plan only ([OpenAPI](docs/openapi/consentops-agent.yaml); [Agent Builder setup](docs/agent-builder-setup.md)) | Implemented |
 | **BigQuery** | Synthetic warehouse scan / execute / verify (mode-controlled) | Implemented (`CONSENTOPS_WAREHOUSE_MODE`) |
 | **Secret Manager** | Recommended for `GEMINI_API_KEY` on Cloud Run | Documented, not wired in app |
 
@@ -247,6 +247,7 @@ Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use 
 | [docs/platform-proof-plan.md](docs/platform-proof-plan.md) | Step-by-step submission checklist |
 | [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md) | **Primary** Fivetran integration (Option 1 MCP, read-only) |
 | [docs/openapi/README.md](docs/openapi/README.md) | Import `POST /api/agent/plan` as an agent tool |
+| [docs/agent-builder-setup.md](docs/agent-builder-setup.md) | Vertex AI Agent Builder chat front-end (scan + plan only) |
 | [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) | Build, deploy, verify hosted demo |
 | [docs/bigquery-demo-setup.md](docs/bigquery-demo-setup.md) | `npm run bigquery:setup` — load synthetic Ana Reyes tables into BigQuery |
 | [infra/terraform/README.md](infra/terraform/README.md) | Terraform IaC for Cloud Run |

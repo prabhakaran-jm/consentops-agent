@@ -1,11 +1,14 @@
 # ConsentOps Agent — OpenAPI and tool import
 
-This folder documents the **read-only** agent API for hackathon judges and integrators.
+This folder documents the **read-only** agent API for hackathon judges, **Vertex AI Agent Builder**, and other integrators.
 
 | File | Purpose |
 |------|---------|
-| [consentops-agent.yaml](./consentops-agent.yaml) | OpenAPI 3.1 spec — **one** operation: `POST /api/agent/plan` |
-| This README | How to import the endpoint as an external agent tool |
+| [consentops-agent.yaml](./consentops-agent.yaml) | Full OpenAPI 3.1 spec — local + Cloud Run servers |
+| [consentops-agent-cloudrun.yaml](./consentops-agent-cloudrun.yaml) | **Agent Builder import** — single hosted server, trimmed schemas |
+| [../agent-builder-setup.md](../agent-builder-setup.md) | Step-by-step Agent Builder chat front-end setup |
+| [../agent-builder-system-prompt.txt](../agent-builder-system-prompt.txt) | Copy-paste system instructions for the agent |
+| This README | Tool import reference |
 
 ## What this API does (and does not do)
 
@@ -45,7 +48,15 @@ Expected (without `GEMINI_API_KEY`): `scan_and_plan_only`, `deterministic`, `37`
 
 ## Import as an agent tool
 
-### Option A — OpenAPI / function-calling (recommended)
+### Option A — Vertex AI Agent Builder (recommended chat front-end)
+
+Follow **[agent-builder-setup.md](../agent-builder-setup.md)**:
+
+1. Create an **OpenAPI tool** from [consentops-agent-cloudrun.yaml](./consentops-agent-cloudrun.yaml).
+2. Create an agent with [agent-builder-system-prompt.txt](../agent-builder-system-prompt.txt).
+3. Chat runs scan + plan via `POST /api/agent/plan`; users open the **ConsentOps web UI** to approve, execute, and audit.
+
+### Option B — OpenAPI / function-calling (generic)
 
 1. Host ConsentOps (local or Cloud Run).
 2. Point your agent runtime at `docs/openapi/consentops-agent.yaml`.
@@ -73,13 +84,13 @@ Expected (without `GEMINI_API_KEY`): `scan_and_plan_only`, `deterministic`, `37`
 }
 ```
 
-### Option B — Gemini / Vertex AI OpenAPI tool
+### Option C — Gemini / Vertex AI OpenAPI tool (manual)
 
 1. Upload or reference `consentops-agent.yaml` in your tool configuration.
 2. Restrict the model to the single `POST /api/agent/plan` path.
 3. Do not expose `/api/execute` or other write routes.
 
-### Option C — Custom HTTP tool
+### Option D — Custom HTTP tool
 
 | Field | Value |
 |-------|-------|

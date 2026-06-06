@@ -18,7 +18,7 @@ servers:
   - url: http://localhost:3000
     description: Local development
   - url: https://consentops-agent-538209538110.us-central1.run.app
-    description: Hosted Cloud Run demo (REST Fivetran mirror; MCP runtime local-only)
+    description: Hosted Cloud Run demo (Gemini + BigQuery bigquery_full + Fivetran MCP when configured)
 
 paths:
   /api/agent/plan:
@@ -199,6 +199,7 @@ components:
           enum:
             - mock
             - live_read_only
+            - mcp_runtime
         modeLabel:
           type: string
         readOnlyNote:
