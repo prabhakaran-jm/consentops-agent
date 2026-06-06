@@ -1,0 +1,3 @@
+# Copy reasoning engine numeric id here after first deploy (gitignored as .agent_engine_id).
+# Example: 1234567890123456789
+# Console: Vertex AI → Agent Engine → ConsentOps Assistant → resource id

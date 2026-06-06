@@ -1,0 +1,3 @@
+google-adk>=1.14.0
+requests>=2.31.0
+google-cloud-aiplatform[adk,agent_engines]>=1.114.0

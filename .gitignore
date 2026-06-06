@@ -48,6 +48,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# ADK Agent Engine deploy state (local id for updates)
+consentops-adk/.agent_engine_id
+.adk-staging/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
