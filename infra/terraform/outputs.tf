@@ -27,3 +27,17 @@ output "gemini_secret_id" {
   description = "Secret Manager id when enable_gemini_secret is true (add version with gcloud, not in git)."
   value       = var.enable_gemini_secret ? google_secret_manager_secret.gemini[0].secret_id : null
 }
+
+output "adk_staging_bucket" {
+  description = "GCS bucket URI for adk deploy agent_engine --staging_bucket."
+  value = var.create_adk_staging_bucket ? (
+    "gs://${google_storage_bucket.adk_staging[0].name}"
+  ) : null
+}
+
+output "adk_deploy_command" {
+  description = "Example deploy after terraform apply (requires adk CLI + .env)."
+  value = var.create_adk_staging_bucket ? (
+    "./scripts/deploy-adk-agent-engine.sh"
+  ) : "Set ADK_STAGING_BUCKET and run ./scripts/deploy-adk-agent-engine.sh"
+}

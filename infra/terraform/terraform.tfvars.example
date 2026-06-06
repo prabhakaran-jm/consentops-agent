@@ -21,3 +21,15 @@ enable_gemini_secret = false
 mount_gemini_secret  = false
 gemini_secret_id     = "GEMINI_API_KEY"
 gemini_model         = "gemini-3.5-flash"
+
+# Hackathon production demo path: BigQuery warehouse + Fivetran MCP (read-only).
+warehouse_mode       = "bigquery_full"
+bigquery_dataset     = "consentops_demo"
+fivetran_mcp_runtime = true
+grant_bigquery_roles = true
+
+# Fivetran credentials via Secret Manager (add versions with gcloud, never Terraform):
+# enable_fivetran_secrets = true
+# mount_fivetran_secrets  = true
+enable_fivetran_secrets = false
+mount_fivetran_secrets  = false

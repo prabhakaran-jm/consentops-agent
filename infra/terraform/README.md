@@ -12,8 +12,10 @@ Infrastructure as code for the hackathon **Cloud Run** deployment. Synthetic dem
 | Secret Manager secret (optional) | **Container only** — secret **value** added via `gcloud`, never in git |
 | Cloud Run v2 service | Port 8080, `max_instances=1`, demo env vars |
 | IAM | Public `run.invoker` when `allow_unauthenticated=true` |
+| GCS bucket (optional) | ADK Agent Engine staging (`create_adk_staging_bucket`, default `true`) |
+| Vertex AI API | Enabled for `adk deploy agent_engine` |
 
-Terraform does **not** build the Docker image. Build and push locally or in CI, then set `container_image`.
+Terraform does **not** build the Docker image or run `adk deploy`. Build/push the app image locally; deploy the ADK agent with [scripts/deploy-adk-agent-engine.sh](../../scripts/deploy-adk-agent-engine.sh).
 
 ## Prerequisites
 
@@ -52,6 +54,17 @@ docker push "$IMAGE"
 ```
 
 Set `container_image = "$IMAGE"` in `terraform.tfvars`, then `terraform apply`.
+
+## ADK Agent Engine deploy
+
+Terraform creates a staging bucket (default `{project_id}-consentops-adk-staging`) and enables `aiplatform.googleapis.com`. The **agent code deploy** uses the ADK CLI (Terraform cannot reliably replace `adk deploy` — it generates `class_methods` and packaging).
+
+```bash
+cd infra/terraform && terraform apply && cd ../..
+./scripts/deploy-adk-agent-engine.sh
+```
+
+Outputs: `adk_staging_bucket`, `adk_deploy_command`. After first deploy, save the reasoning engine id to `consentops-adk/.agent_engine_id` (script tries to capture it automatically). See [agent-builder-setup.md](../../docs/agent-builder-setup.md).
 
 ## Optional Gemini secret (three-step)
 

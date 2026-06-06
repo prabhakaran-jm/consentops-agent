@@ -8,16 +8,35 @@ locals {
     { name = "DEMO_MODE", value = "true" },
     { name = "CONSENTOPS_DEMO_MODE", value = "true" },
     { name = "GEMINI_MODEL", value = var.gemini_model },
+    { name = "CONSENTOPS_WAREHOUSE_MODE", value = var.warehouse_mode },
+    { name = "GOOGLE_CLOUD_PROJECT", value = var.project_id },
+    { name = "BIGQUERY_DATASET", value = var.bigquery_dataset },
+    { name = "FIVETRAN_MCP_RUNTIME", value = var.fivetran_mcp_runtime ? "true" : "false" },
+    { name = "FIVETRAN_ALLOW_WRITES", value = "false" },
     { name = "NODE_ENV", value = "production" },
   ]
 
-  secret_env = var.mount_gemini_secret ? [
-    {
-      name      = "GEMINI_API_KEY"
-      secret_id = google_secret_manager_secret.gemini[0].secret_id
-      version   = "latest"
-    }
-  ] : []
+  secret_env = concat(
+    var.mount_gemini_secret ? [
+      {
+        name      = "GEMINI_API_KEY"
+        secret_id = google_secret_manager_secret.gemini[0].secret_id
+        version   = "latest"
+      }
+    ] : [],
+    var.mount_fivetran_secrets ? [
+      {
+        name      = "FIVETRAN_API_KEY"
+        secret_id = google_secret_manager_secret.fivetran_key[0].secret_id
+        version   = "latest"
+      },
+      {
+        name      = "FIVETRAN_API_SECRET"
+        secret_id = google_secret_manager_secret.fivetran_secret[0].secret_id
+        version   = "latest"
+      },
+    ] : [],
+  )
 }
 
 resource "google_project_service" "required" {
@@ -26,6 +45,7 @@ resource "google_project_service" "required" {
     "artifactregistry.googleapis.com",
     "secretmanager.googleapis.com",
     "iam.googleapis.com",
+    "aiplatform.googleapis.com",
   ])
 
   project            = var.project_id
@@ -93,6 +113,76 @@ resource "google_secret_manager_secret_iam_member" "gemini_accessor" {
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
+resource "google_secret_manager_secret" "fivetran_key" {
+  count = var.enable_fivetran_secrets ? 1 : 0
+
+  project   = var.project_id
+  secret_id = var.fivetran_key_secret_id
+
+  replication {
+    auto {}
+  }
+
+  labels = local.labels
+
+  depends_on = [
+    google_project_service.required,
+    time_sleep.wait_for_apis,
+  ]
+}
+
+resource "google_secret_manager_secret" "fivetran_secret" {
+  count = var.enable_fivetran_secrets ? 1 : 0
+
+  project   = var.project_id
+  secret_id = var.fivetran_api_secret_id
+
+  replication {
+    auto {}
+  }
+
+  labels = local.labels
+
+  depends_on = [
+    google_project_service.required,
+    time_sleep.wait_for_apis,
+  ]
+}
+
+resource "google_secret_manager_secret_iam_member" "fivetran_key_accessor" {
+  count = var.enable_fivetran_secrets ? 1 : 0
+
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.fivetran_key[0].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "fivetran_secret_accessor" {
+  count = var.enable_fivetran_secrets ? 1 : 0
+
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.fivetran_secret[0].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_project_iam_member" "cloud_run_bigquery_data_editor" {
+  count = var.grant_bigquery_roles ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_project_iam_member" "cloud_run_bigquery_job_user" {
+  count = var.grant_bigquery_roles ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
 # Cloud Run must read the image from Artifact Registry in this project.
 resource "google_project_iam_member" "serverless_robot_ar_reader" {
   project = var.project_id
@@ -131,7 +221,7 @@ resource "google_cloud_run_v2_service" "consentops" {
       resources {
         limits = {
           cpu    = "1"
-          memory = "512Mi"
+          memory = "2Gi"
         }
       }
 
