@@ -9,10 +9,10 @@ import {
 } from "@/lib/connectors/fivetranRestClient";
 import { getRealFivetranConfigFromEnv, type RealFivetranConfig } from "@/lib/connectors/realFivetranAdapter";
 
-const LIST_CONNECTIONS_SCHEMA = "open-api-definitions/connections/list_connections.json";
+export const LIST_CONNECTIONS_SCHEMA = "open-api-definitions/connections/list_connections.json";
 const MCP_TIMEOUT_MS = 45_000;
 
-const READ_ONLY_TOOL_NAMES = new Set([
+export const READ_ONLY_FIVETRAN_TOOL_NAMES = new Set([
   "get_account_info",
   "list_connections",
   "get_connection_details",
@@ -118,7 +118,7 @@ export const openFivetranMcpSession = async (
 
   return {
     async callTool(name: string, args: Record<string, unknown>) {
-      if (!READ_ONLY_TOOL_NAMES.has(name)) {
+      if (!READ_ONLY_FIVETRAN_TOOL_NAMES.has(name)) {
         throw new Error(`Fivetran MCP tool '${name}' is not allowlisted for read-only runtime.`);
       }
       const result = await withTimeout(
