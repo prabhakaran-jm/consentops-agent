@@ -12,6 +12,23 @@ const BLOCKED_POLICIES = [
   "No unapproved action may be executed.",
 ];
 
+/** Gemini may return snake_case policy ids — show readable labels in the UI. */
+const humanizeBlockedPolicy = (line: string): string => {
+  if (/[.!?]/.test(line) || /\s/.test(line.trim())) {
+    return line.trim();
+  }
+  const sentence = line
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+  return sentence.endsWith(".") ? sentence : `${sentence}.`;
+};
+
+const blockedPoliciesForDisplay = (blocked: string[] | undefined): string[] => {
+  if (!blocked?.length) return [...BLOCKED_POLICIES];
+  return blocked.map(humanizeBlockedPolicy);
+};
+
 const SAFETY_CHECKS = [
   { title: "Record-scoped actions only", detail: "Every action targets explicit record IDs — no table-wide cleanup." },
   { title: "Financial retention rules", detail: "payments_transactions is retain-only; deletes blocked." },
@@ -52,7 +69,18 @@ export function CleanupPlanPanel({
     : null;
 
   return (
-    <StepPanel id="step-4" step={4} title="Cleanup Plan Generation">
+    <StepPanel
+      id="step-4"
+      step={4}
+      title="Cleanup Plan Generation"
+      headerRight={
+        plan ? (
+          <PrimaryButton onClick={onGenerate} loading={loading} disabled={!canGenerate}>
+            Regenerate plan
+          </PrimaryButton>
+        ) : null
+      }
+    >
       {!plan ? (
         <div className="space-y-4">
           <p className="text-[13px] text-cops-on-surface-variant">
@@ -65,8 +93,8 @@ export function CleanupPlanPanel({
           </PrimaryButton>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="space-y-4 lg:col-span-2">
+        <div className="grid grid-cols-1 gap-6 overflow-hidden lg:grid-cols-3">
+          <div className="min-w-0 space-y-4 lg:col-span-2">
             <div className="rounded-lg border border-cops-outline-variant bg-cops-surface-container-low p-4">
               <div className="mb-4 flex items-center justify-between border-b border-cops-outline-variant pb-2">
                 <div className="flex items-center gap-2">
@@ -117,7 +145,7 @@ export function CleanupPlanPanel({
             </div>
           </div>
 
-          <div className="rounded-lg border border-cops-outline-variant border-l-4 border-l-cops-on-tertiary-container bg-cops-surface-container-lowest p-4 shadow-inner">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-cops-outline-variant border-l-4 border-l-cops-on-tertiary-container bg-cops-surface-container-lowest p-4 shadow-inner">
             <div className="mb-4 flex items-center gap-2 border-b border-cops-outline-variant pb-2">
               <ShieldBan className="h-4 w-4 text-cops-on-tertiary-container" aria-hidden />
               <h4 className="text-sm font-semibold">Deterministic Safety Validation</h4>
@@ -137,11 +165,18 @@ export function CleanupPlanPanel({
                 <p className="text-[13px]">Rule sets strictly override advisory AI planning.</p>
               </li>
             </ul>
-            <ul className="mt-4 space-y-1 border-t border-cops-outline-variant pt-3 text-[11px] text-cops-on-surface-variant">
-              {(provenance?.blockedActions.length ? provenance.blockedActions : BLOCKED_POLICIES).map((line) => (
-                <li key={line}>• {line}</li>
-              ))}
-            </ul>
+            <div className="mt-4 border-t border-cops-outline-variant pt-3">
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-wide text-cops-outline">
+                Blocked without approval
+              </p>
+              <ul className="max-h-28 space-y-2 overflow-y-auto text-[12px] leading-snug text-cops-on-surface-variant">
+                {blockedPoliciesForDisplay(provenance?.blockedActions).map((line) => (
+                  <li key={line} className="break-words rounded bg-cops-surface-container-high px-2 py-1.5">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       )}

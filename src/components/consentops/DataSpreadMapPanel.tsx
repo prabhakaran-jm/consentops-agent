@@ -3,15 +3,13 @@ import { CheckCircle } from "lucide-react";
 import type { DataSpreadMap } from "@/lib/warehouse/localWarehouse";
 import type { DataMatch } from "@/lib/warehouse/types";
 
-import { Badge, DensityBar, PrimaryButton, StepPanel } from "./ui";
+import { Badge, DensityBar, StepPanel } from "./ui";
 
 type Props = {
   spreadMap: Partial<DataSpreadMap> | null;
   matches: DataMatch[] | null;
   beforeCount: number | null;
-  onGenerate?: () => void;
-  loadingPlan?: boolean;
-  canGenerate?: boolean;
+  planReady?: boolean;
 };
 
 function tableStatus(total: number, high: number, medium: number): { label: string; tone: "success" | "warning" | "neutral" } {
@@ -24,9 +22,7 @@ export function DataSpreadMapPanel({
   spreadMap,
   matches,
   beforeCount,
-  onGenerate,
-  loadingPlan,
-  canGenerate,
+  planReady = false,
 }: Props) {
   if (!spreadMap || !matches || beforeCount === null) {
     return (
@@ -106,17 +102,17 @@ export function DataSpreadMapPanel({
           Total instances found:{" "}
           <strong className="font-mono text-cops-primary">{beforeCount}</strong> across{" "}
           <strong className="font-mono text-cops-primary">{tablesWithData}</strong> tables.
+          {!planReady ? (
+            <>
+              {" "}
+              Continue to{" "}
+              <a href="#step-4" className="font-medium text-cops-secondary hover:underline">
+                Step 4
+              </a>{" "}
+              to generate a cleanup plan.
+            </>
+          ) : null}
         </p>
-        {onGenerate && (
-          <PrimaryButton
-            variant="outline"
-            onClick={onGenerate}
-            loading={loadingPlan}
-            disabled={!canGenerate}
-          >
-            Generate cleanup plan
-          </PrimaryButton>
-        )}
       </div>
     </StepPanel>
   );

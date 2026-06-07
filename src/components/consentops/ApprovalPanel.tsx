@@ -11,7 +11,7 @@ type Props = {
   onToggle: (actionId: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
-  onExecute: () => void;
+  onExecute: () => void | Promise<void>;
   loading: boolean;
   executionCompleted: boolean;
 };
@@ -127,6 +127,7 @@ export function ApprovalPanel({
             onConfirm={onExecute}
             disabled={!canExecute}
             loading={loading}
+            completed={executionCompleted}
             label="Slide to confirm execute"
           />
 

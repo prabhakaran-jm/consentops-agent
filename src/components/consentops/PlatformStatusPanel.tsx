@@ -8,15 +8,17 @@ type Props = {
   status: PlatformStatus | null;
   loading?: boolean;
   compact?: boolean;
+  plannerWarning?: string | null;
 };
 
 function yesNo(value: boolean): string {
   return value ? "yes" : "no";
 }
 
-export function PlatformStatusPanel({ status, loading, compact }: Props) {
+export function PlatformStatusPanel({ status, loading, compact, plannerWarning }: Props) {
   if (compact) {
-    const operational = status && !status.workflow.lastPlanWarning;
+    const hasWarning = Boolean(plannerWarning);
+    const operational = Boolean(status) && !hasWarning;
     return (
       <div className="flex items-center gap-4 rounded border border-cops-outline-variant bg-cops-surface-container-lowest p-3">
         <div className="flex flex-col">
@@ -26,17 +28,27 @@ export function PlatformStatusPanel({ status, loading, compact }: Props) {
           <div className="mt-1 flex items-center gap-2">
             <span
               className={`h-2 w-2 rounded-full ${
-                loading ? "bg-cops-outline" : operational ? "bg-cops-on-tertiary-container shadow-[0_0_8px_rgba(0,150,104,0.4)]" : "bg-amber-500"
+                loading
+                  ? "bg-cops-outline"
+                  : hasWarning
+                    ? "bg-amber-500"
+                    : operational
+                      ? "bg-cops-on-tertiary-container shadow-[0_0_8px_rgba(0,150,104,0.4)]"
+                      : "bg-cops-outline"
               }`}
             />
             <span className="text-[13px] font-medium">
-              {loading ? "Loading…" : operational ? "All systems operational" : "Check planner warning"}
+              {loading
+                ? "Loading…"
+                : hasWarning
+                  ? "Planner used fallback"
+                  : operational
+                    ? "All systems operational"
+                    : "Status unavailable"}
             </span>
           </div>
         </div>
-        {status?.gemini.model && (
-          <Badge tone="info">{status.gemini.model}</Badge>
-        )}
+        {status?.gemini.model && <Badge tone="info">{status.gemini.model}</Badge>}
       </div>
     );
   }

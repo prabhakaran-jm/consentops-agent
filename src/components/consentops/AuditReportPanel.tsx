@@ -10,6 +10,7 @@ import {
   type ConsentOpsAuditReport,
 } from "@/lib/audit/auditReport";
 
+import { AuditBeforeAfterVisual } from "./AuditBeforeAfterVisual";
 import { Badge, formatIsoTime, StepPanel } from "./ui";
 
 type Props = {
@@ -61,6 +62,8 @@ export function AuditReportPanel({ audit, pending }: Props) {
 
       {audit && (
         <div className="space-y-6">
+          <AuditBeforeAfterVisual before={audit.recordsFoundBefore} after={audit.recordsRemainingAfter} />
+
           <p className="rounded-lg border border-cops-outline-variant bg-cops-surface-container-low p-3 text-[13px] text-cops-on-surface">
             {audit.summary}
           </p>

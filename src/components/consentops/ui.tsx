@@ -75,17 +75,19 @@ export function PrimaryButton({
   onClick,
   disabled,
   loading,
-  variant = "primary",
+  variant = "secondary",
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   loading?: boolean;
+  /** secondary = brand blue workflow CTA; outline = low emphasis; primary = black accent */
   variant?: "primary" | "secondary" | "outline";
 }) {
   const styles = {
     primary: "bg-cops-primary text-cops-on-primary hover:opacity-90",
-    secondary: "bg-cops-secondary text-cops-on-secondary hover:opacity-90",
+    secondary:
+      "bg-cops-secondary text-cops-on-secondary shadow-sm hover:bg-[#00547a] disabled:hover:bg-cops-secondary",
     outline:
       "border border-cops-outline-variant bg-cops-surface text-cops-secondary hover:bg-cops-surface-container",
   };

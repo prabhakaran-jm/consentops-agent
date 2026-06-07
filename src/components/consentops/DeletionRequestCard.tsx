@@ -67,9 +67,9 @@ export function DeletionRequestCard({ subject, onScan, loading, scanned }: Props
             <Info className="mb-1 block h-4 w-4 text-cops-secondary" aria-hidden />
             Initiate a scan across connected sources to locate records matching this synthetic subject.
           </div>
-          <PrimaryButton variant="secondary" onClick={onScan} loading={loading}>
+          <PrimaryButton onClick={onScan} loading={loading}>
             <Search className="h-4 w-4" aria-hidden />
-            Scan data spread
+            {scanned ? "Re-scan data spread" : "Scan data spread"}
           </PrimaryButton>
           {scanned && (
             <p className="flex items-center gap-1 text-[13px] text-cops-on-tertiary-container">

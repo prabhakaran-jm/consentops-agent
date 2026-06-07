@@ -1,13 +1,15 @@
 "use client";
 
 import { ArrowRight, Check } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Props = {
   label?: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   disabled?: boolean;
   loading?: boolean;
+  /** Set by parent when execution succeeds — drives the green confirmed state. */
+  completed?: boolean;
 };
 
 export function SlideToConfirm({
@@ -15,21 +17,29 @@ export function SlideToConfirm({
   onConfirm,
   disabled,
   loading,
+  completed = false,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);
-  const [confirmed, setConfirmed] = useState(false);
+  const dragXRef = useRef(0);
   const dragging = useRef(false);
   const startX = useRef(0);
   const maxX = useRef(0);
 
   const reset = useCallback(() => {
     setDragX(0);
+    dragXRef.current = 0;
     dragging.current = false;
   }, []);
 
+  useEffect(() => {
+    if (!completed && !loading) {
+      reset();
+    }
+  }, [completed, loading, reset]);
+
   const onStart = (clientX: number) => {
-    if (disabled || loading || confirmed) return;
+    if (disabled || loading || completed) return;
     const track = trackRef.current;
     if (!track) return;
     dragging.current = true;
@@ -42,22 +52,28 @@ export function SlideToConfirm({
     let next = clientX - startX.current;
     if (next < 0) next = 0;
     if (next > maxX.current) next = maxX.current;
+    dragXRef.current = next;
     setDragX(next);
   };
 
-  const onEnd = () => {
-    if (!dragging.current) return;
+  const onEnd = async () => {
+    if (!dragging.current || completed || loading) return;
     dragging.current = false;
-    if (dragX > maxX.current * 0.9) {
+    const x = dragXRef.current;
+    if (x > maxX.current * 0.9) {
       setDragX(maxX.current);
-      setConfirmed(true);
-      onConfirm();
+      dragXRef.current = maxX.current;
+      try {
+        await onConfirm();
+      } catch {
+        reset();
+      }
     } else {
       reset();
     }
   };
 
-  const locked = disabled || loading || confirmed;
+  const locked = disabled || loading || completed;
 
   return (
     <div className="mx-auto max-w-md">
@@ -66,9 +82,9 @@ export function SlideToConfirm({
       </p>
       <div
         ref={trackRef}
-        className={`relative flex h-14 items-center justify-center overflow-hidden rounded-full border border-cops-outline-variant bg-cops-surface-container-high ${
-          confirmed ? "bg-cops-primary-container" : ""
-        } ${locked && !confirmed ? "opacity-50" : ""}`}
+        className={`relative flex h-14 items-center justify-center overflow-hidden rounded-full border border-cops-secondary/20 bg-cops-surface-container-high ${
+          completed ? "border-cops-on-tertiary-container/40 bg-[#E6F4EA]" : ""
+        } ${locked && !completed ? "opacity-50" : ""}`}
         onMouseMove={(e) => onMove(e.clientX)}
         onMouseUp={onEnd}
         onMouseLeave={onEnd}
@@ -77,25 +93,25 @@ export function SlideToConfirm({
       >
         <span
           className={`pointer-events-none z-0 select-none text-[11px] font-medium uppercase tracking-wider text-cops-on-surface-variant ${
-            confirmed ? "text-cops-inverse-on-surface" : ""
+            completed ? "text-cops-inverse-on-surface" : ""
           }`}
         >
-          {loading ? "Executing…" : confirmed ? "Confirmed" : label}
+          {loading ? "Executing…" : completed ? "Confirmed" : label}
         </span>
         <div
           role="button"
           tabIndex={locked ? -1 : 0}
           aria-disabled={locked}
-          className={`absolute left-1 top-1 z-10 flex h-12 w-12 cursor-grab items-center justify-center rounded-full shadow active:cursor-grabbing ${
-            confirmed
-              ? "bg-cops-on-primary text-cops-primary-container"
-              : "bg-cops-primary text-cops-on-primary"
+          className={`absolute left-1 top-1 z-10 flex h-12 w-12 cursor-grab items-center justify-center rounded-full shadow-md active:cursor-grabbing ${
+            completed
+              ? "bg-cops-on-tertiary-container text-white"
+              : "bg-cops-secondary text-cops-on-secondary"
           }`}
           style={{ transform: `translateX(${dragX}px)`, transition: dragging.current ? "none" : "transform 0.3s ease" }}
           onMouseDown={(e) => onStart(e.clientX)}
           onTouchStart={(e) => onStart(e.touches[0]?.clientX ?? 0)}
         >
-          {confirmed || loading ? (
+          {completed || loading ? (
             <Check className="h-5 w-5" aria-hidden />
           ) : (
             <ArrowRight className="h-5 w-5" aria-hidden />

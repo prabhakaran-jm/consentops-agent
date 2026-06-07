@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { demoSubject } from "@/lib/demo/seedData";
+import { AGENT_ENGINE_PLAYGROUND_URL } from "@/lib/demo/publicLinks";
 import type { PlatformStatus } from "@/lib/platform/platformStatus";
 import type { CleanupPlan, ConsentSubject } from "@/lib/warehouse/types";
 
@@ -15,6 +16,9 @@ import { DeletionRequestCard } from "./DeletionRequestCard";
 import { FivetranConnectorPanel } from "./FivetranConnectorPanel";
 import { HumanInLoopBanner, PlatformStatusPanel } from "./PlatformStatusPanel";
 import { PipelineDiscoveryPanel } from "./PipelineDiscoveryPanel";
+import { PostScanSummaryHero } from "./PostScanSummaryHero";
+import { useScrollSpy } from "./useScrollSpy";
+import { WorkflowProgressStepper } from "./WorkflowProgressStepper";
 import type {
   AuditResponse,
   ExecuteResponse,
@@ -22,6 +26,16 @@ import type {
   PlanResponse,
   ScanResponse,
 } from "./types";
+
+const SCROLL_SPY_SECTIONS = [
+  "step-1",
+  "step-2",
+  "step-2b",
+  "step-3",
+  "step-4",
+  "step-5",
+  "step-6",
+] as const;
 
 export function ConsentOpsDashboard() {
   const [subject] = useState<ConsentSubject>(demoSubject);
@@ -131,8 +145,10 @@ export function ConsentOpsDashboard() {
     }
   };
 
-  const handleExecute = async () => {
-    if (executionCompleted || !plan || selectedIds.size === 0) return;
+  const handleExecute = async (): Promise<void> => {
+    if (executionCompleted || !plan || selectedIds.size === 0) {
+      throw new Error("Select at least one action to execute.");
+    }
     setError(null);
     setLoadingExecute(true);
     try {
@@ -156,6 +172,7 @@ export function ConsentOpsDashboard() {
       document.getElementById("step-6")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Execution failed");
+      throw e;
     } finally {
       setLoadingExecute(false);
     }
@@ -177,10 +194,29 @@ export function ConsentOpsDashboard() {
 
   const auditPending = audit.status === "no_execution_yet";
   const auditReport = audit.status === "ok" ? audit.audit : null;
+  const activeStep = useScrollSpy(SCROLL_SPY_SECTIONS);
+
+  const completedStepIds = useMemo(() => {
+    const completed = new Set<string>();
+    if (scan) {
+      completed.add("step-1");
+      completed.add("step-2");
+      completed.add("step-2b");
+      completed.add("step-3");
+    }
+    if (plan) completed.add("step-4");
+    if (executionCompleted) {
+      completed.add("step-5");
+      completed.add("step-6");
+    }
+    return completed;
+  }, [scan, plan, executionCompleted]);
+
+  const approvalReady = selectedIds.size > 0;
 
   return (
     <div className="flex min-h-screen bg-cops-surface">
-      <DashboardSidebar onScan={handleScan} scanning={loadingScan} />
+      <DashboardSidebar activeStep={activeStep} completedStepIds={completedStepIds} />
 
       <main className="flex min-h-screen flex-1 flex-col lg:ml-64">
         <div className="mx-auto w-full max-w-7xl flex-1 space-y-8 p-4 sm:p-8">
@@ -197,8 +233,25 @@ export function ConsentOpsDashboard() {
                 required for final deletion execution.
               </p>
             </div>
-            <PlatformStatusPanel status={platformStatus} loading={loadingStatus} compact />
+            <PlatformStatusPanel
+              status={platformStatus}
+              loading={loadingStatus}
+              compact
+              plannerWarning={planProvenance?.warning ?? null}
+            />
           </div>
+
+          <WorkflowProgressStepper
+            scanComplete={Boolean(scan)}
+            planComplete={Boolean(plan)}
+            approvalReady={approvalReady}
+            executionComplete={executionCompleted}
+            auditComplete={Boolean(auditReport)}
+          />
+
+          {scan && (
+            <PostScanSummaryHero scan={scan} platformStatus={platformStatus} />
+          )}
 
           {error && (
             <div
@@ -208,18 +261,6 @@ export function ConsentOpsDashboard() {
               {error}
             </div>
           )}
-
-          <details
-            id="platform-status"
-            className="scroll-mt-24 rounded-lg border border-cops-outline-variant bg-cops-surface-container-lowest"
-          >
-            <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-cops-secondary">
-              Full platform status (judges)
-            </summary>
-            <div className="border-t border-cops-outline-variant p-2">
-              <PlatformStatusPanel status={platformStatus} loading={loadingStatus} />
-            </div>
-          </details>
 
           <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
             <div className="space-y-8 xl:col-span-8">
@@ -233,9 +274,7 @@ export function ConsentOpsDashboard() {
                 spreadMap={scan?.spreadMap ?? null}
                 matches={scan?.matches ?? null}
                 beforeCount={scan?.beforeCount ?? null}
-                onGenerate={handleGeneratePlan}
-                loadingPlan={loadingPlan}
-                canGenerate={Boolean(scan)}
+                planReady={Boolean(plan)}
               />
               <CleanupPlanPanel
                 plan={plan}
@@ -269,6 +308,22 @@ export function ConsentOpsDashboard() {
               <HumanInLoopBanner />
             </div>
           </div>
+
+          <details
+            id="platform-status"
+            className="scroll-mt-24 rounded-lg border border-cops-outline-variant bg-cops-surface-container-lowest"
+          >
+            <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-cops-secondary">
+              Full platform status (judges)
+            </summary>
+            <div className="border-t border-cops-outline-variant p-2">
+              <PlatformStatusPanel
+                status={platformStatus}
+                loading={loadingStatus}
+                plannerWarning={planProvenance?.warning ?? null}
+              />
+            </div>
+          </details>
         </div>
 
         <footer className="mt-auto border-t border-cops-outline-variant bg-cops-surface-container-lowest py-6">
@@ -276,9 +331,17 @@ export function ConsentOpsDashboard() {
             <p className="font-mono text-xs text-cops-on-surface-variant">
               © {new Date().getFullYear()} ConsentOps Agent — Technical precision &amp; transparency
             </p>
-            <div className="flex gap-6 font-mono text-xs text-cops-on-surface-variant">
+            <div className="flex flex-wrap gap-6 font-mono text-xs text-cops-on-surface-variant">
               <a href="/api/status" className="hover:text-cops-primary hover:underline">
                 System status
+              </a>
+              <a
+                href={AGENT_ENGINE_PLAYGROUND_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-cops-primary hover:underline"
+              >
+                Agent Engine playground
               </a>
               <span>Synthetic demo only</span>
             </div>
