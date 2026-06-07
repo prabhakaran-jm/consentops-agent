@@ -77,6 +77,7 @@ export async function POST(request: Request) {
         pipelineLineage: scan.pipelineLineage,
         fivetranDiscoverySource: scan.fivetranDiscoverySource,
         mcpToolsRun: scan.mcpToolsRun,
+        warehouseScanContext: scan.warehouseScanContext,
       },
       summaryForAgent: {
         recordsFound: scan.matches.length,

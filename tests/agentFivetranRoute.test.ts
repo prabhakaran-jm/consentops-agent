@@ -20,6 +20,11 @@ describe("POST /api/agent/fivetran", () => {
     expect(body.source).toBe("mock");
     expect(body.disclaimer).toMatch(/read-only/i);
     expect(body.data?.data?.items?.length).toBeGreaterThan(0);
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toMatch(/conn_[a-z0-9_]+/i);
+    expect(body.data?.data?.items?.every((item: { id: string }) => item.id.startsWith("connector_"))).toBe(
+      true,
+    );
   });
 
   it("returns get_account_info via adapter fallback", async () => {

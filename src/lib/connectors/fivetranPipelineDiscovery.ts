@@ -33,6 +33,7 @@ export type FivetranPipelineDiscovery = {
   pipelineLineage: PipelineLineageEntry[];
   discoverySource: FivetranAgentToolSource;
   toolsRun: number;
+  connectionItems: ConnectionItem[];
 };
 
 type ConnectionItem = FivetranConnectionApiItem & { group_id?: string };
@@ -47,11 +48,19 @@ const inferHealth = (item: ConnectionItem): PipelineLineageEntry["health"] => {
   return "healthy";
 };
 
+const publicSchemaLabel = (item: ConnectionItem, index: number): string => {
+  if (item.service?.includes("bigquery")) {
+    const dataset = process.env.BIGQUERY_DATASET?.trim();
+    return dataset ? `bigquery://${dataset}` : "bigquery://demo_warehouse";
+  }
+  return `demo_schema_${String(index + 1).padStart(2, "0")}`;
+};
+
 const buildLineage = (items: ConnectionItem[]): PipelineLineageEntry[] =>
   items.map((item, index) => ({
     connectorAlias: `connector_${String(index + 1).padStart(2, "0")}`,
     service: item.service ?? "unknown",
-    schema: item.schema ?? item.id,
+    schema: publicSchemaLabel(item, index),
     health: inferHealth(item),
     mappedTables: inferMappedTables(item.service),
   }));
@@ -132,5 +141,6 @@ export const discoverFivetranPipelineViaMcp = async (): Promise<FivetranPipeline
     pipelineLineage,
     discoverySource,
     toolsRun: mcpTrace.length,
+    connectionItems: items,
   };
 };

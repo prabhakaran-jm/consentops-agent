@@ -46,19 +46,40 @@ const summarizeHealth = (connectors: FivetranConnector[]): FivetranHealthSummary
   offline: connectors.filter((c) => c.health === "offline").length,
 });
 
-export const toRedactedPanelItems = (connectors: FivetranConnector[]): FivetranConnectorPanelItem[] =>
+const redactLiveConnectorFields = (
+  connector: FivetranConnector,
+  displayKey: string,
+): Pick<FivetranConnectorPanelItem, "name" | "destination"> => {
+  const sourceLabel = connector.source.replace(/_/g, " ");
+  return {
+    name: `${sourceLabel} connector (${displayKey})`,
+    destination: connector.destination.toLowerCase().includes("bigquery")
+      ? "BigQuery warehouse"
+      : "Demo warehouse destination",
+  };
+};
+
+export const toRedactedPanelItems = (
+  connectors: FivetranConnector[],
+  mode: FivetranPanelMode = "mock",
+): FivetranConnectorPanelItem[] =>
   [...connectors]
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map((connector, index) => ({
-      displayKey: `connector_${String(index + 1).padStart(2, "0")}`,
-      name: connector.name,
-      source: connector.source,
-      destination: connector.destination,
-      health: connector.health,
-      lastSyncedAtIso: connector.lastSyncedAtIso,
-      lastSyncStatus: connector.lastSyncStatus,
-      mappedTables: [...connector.mappedTables],
-    }));
+    .map((connector, index) => {
+      const displayKey = `connector_${String(index + 1).padStart(2, "0")}`;
+      const liveFields =
+        mode === "mock" ? null : redactLiveConnectorFields(connector, displayKey);
+      return {
+        displayKey,
+        name: liveFields?.name ?? connector.name,
+        source: connector.source,
+        destination: liveFields?.destination ?? connector.destination,
+        health: connector.health,
+        lastSyncedAtIso: connector.lastSyncedAtIso,
+        lastSyncStatus: connector.lastSyncStatus,
+        mappedTables: [...connector.mappedTables],
+      };
+    });
 
 export const buildFivetranConnectorPanelData = (
   connectors: FivetranConnector[],
@@ -73,7 +94,7 @@ export const buildFivetranConnectorPanelData = (
       ? LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT
       : null,
   healthSummary: summarizeHealth(connectors),
-  connectors: toRedactedPanelItems(connectors),
+  connectors: toRedactedPanelItems(connectors, mode),
 });
 
 export const getFivetranConnectorPanelData = async (): Promise<FivetranConnectorPanelData> => {

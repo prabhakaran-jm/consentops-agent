@@ -370,7 +370,7 @@ def _print_post_deploy_hints(*, project: str, region: str, engine_id: str | None
     print("Post-deploy validation (Agent Engine Playground):")
     print("  1. New session → prompt: scan Ana Reyes, do not execute")
     print("  2. Trace should show consentOpsScanWarehouse + consentOpsBuildPlan")
-    print("  3. Record count should match Cloud Run BigQuery (~25), not fixture 37")
+    print("  3. Record count should match live scan beforeCount (37 after full bigquery:setup seed)")
     print("  4. Fivetran context comes from the scan response. MCP runs locally")
     print("     (adk web via uvx), not on Engine — installing fivetran-mcp here pulls")
     print("     fastmcp/httpx that crash the runtime, and Engine has no uvx to isolate it.")

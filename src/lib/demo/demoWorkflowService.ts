@@ -4,8 +4,13 @@ import { generateAuditReport, type ConsentOpsAuditReport } from "@/lib/audit/aud
 import { getFivetranAdapter } from "@/lib/connectors/fivetranAdapterFactory";
 import { discoverFivetranPipelineViaMcp } from "@/lib/connectors/fivetranPipelineDiscovery";
 import { getFivetranConnectorPanelData } from "@/lib/connectors/fivetranPanelData";
+import {
+  buildFivetranAliasMap,
+  sanitizeMcpTrace,
+} from "@/lib/connectors/fivetranPublicSanitizer";
 import type { ExecutionApproval } from "@/lib/execution/safetyPolicy";
 import { getEmailSha256 } from "@/lib/demo/seedData";
+import { buildWarehouseScanContext } from "@/lib/demo/warehouseScanContext";
 import {
   getDemoWorkflowState,
   updateDemoWorkflowState,
@@ -46,6 +51,7 @@ export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
   ]);
   const spreadMap = buildDataSpreadMap(matches);
   updateDemoWorkflowState({ latestScanMatches: cloneMatches(matches) });
+  const fivetranAliasMap = buildFivetranAliasMap(pipelineDiscovery.connectionItems);
 
   return {
     subject,
@@ -54,10 +60,11 @@ export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
     spreadMap,
     beforeCount: matches.length,
     scanSource,
-    mcpTrace: pipelineDiscovery.mcpTrace,
+    mcpTrace: sanitizeMcpTrace(pipelineDiscovery.mcpTrace, fivetranAliasMap),
     pipelineLineage: pipelineDiscovery.pipelineLineage,
     fivetranDiscoverySource: pipelineDiscovery.discoverySource,
     mcpToolsRun: pipelineDiscovery.toolsRun,
+    warehouseScanContext: buildWarehouseScanContext(scanSource, pipelineDiscovery.pipelineLineage),
   };
 };
 

@@ -18,7 +18,7 @@ Most tools stop at policy slides. ConsentOps models the full operational loop.
 
 Given a consent withdrawal for a synthetic subject (Ana Reyes), ConsentOps:
 
-1. **Scans** the demo warehouse (local JSON or BigQuery when configured) across 7 tables — **25** matches on hosted BigQuery (Cloud Run), **37** on local JSON fixtures for Ana Reyes
+1. **Scans** the demo warehouse (local JSON or BigQuery when configured) across 7 tables — quote **`beforeCount`** from the scan (fixtures expect **37** when all seven tables are loaded; run `npm run bigquery:setup` on hosted BigQuery)
 2. **Maps** where data spread (connectors, tables, confidence, sensitivity)
 3. **Plans** record-scoped cleanup actions — `delete`, `anonymize`, `retain`, or `review`
 4. **Blocks** unsafe suggestions (payment deletes, wildcards, missing retain reasons)
@@ -146,7 +146,7 @@ flowchart TB
 Consent withdrawal (Ana Reyes)
         │
         ▼
-   Scan warehouse ──► 25 matches (hosted BQ) or 37 (local JSON) across 7 tables + Fivetran MCP discovery
+   Scan warehouse ──► live beforeCount (37 after full seed) across 7 tables + Fivetran MCP discovery
         │
         ▼
    Generate plan ──► Classified actions (delete / anonymize / retain / review)

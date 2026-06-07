@@ -26,7 +26,7 @@ npm run bigquery:setup           # create dataset, tables, load rows
 
 Creates dataset `BIGQUERY_DATASET`, seven tables (`scripts/bigquery/demo-schema.sql`), and inserts all rows from `seedData.ts`.
 
-Restart the app and scan — expect `scanSource: "bigquery"`. Hosted Cloud Run typically returns **25** matches for Ana Reyes; local JSON fixtures return **37**.
+Restart the app and scan — expect `scanSource: "bigquery"`. After `npm run bigquery:setup`, Ana Reyes fixtures expect **37** matches when all seven demo tables are loaded. Always quote live `beforeCount` from the scan response (hosted Cloud Run may drift until re-seeded).
 
 ## Warehouse modes
 
@@ -71,5 +71,6 @@ When `DEMO_MODE=true` or `CONSENTOPS_DEMO_MODE=true`, operations are restricted 
 | Permission errors on execute | Add `bigquery.dataEditor` + `jobUser` |
 | After count unchanged after deletes | Likely on `bigquery_scan` — switch to `bigquery_full` |
 | Scan 0 matches | Run `npm run bigquery:setup`; check project/dataset env vars |
+| Hosted Cloud Run count below 37 | Run `npm run bigquery:setup` against the **same GCP project** as Cloud Run, then redeploy or restart the service |
 
 Deploy with the same env on Cloud Run: [cloud-run-deployment.md](./cloud-run-deployment.md).

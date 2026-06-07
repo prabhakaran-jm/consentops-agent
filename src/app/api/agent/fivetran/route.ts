@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { invokeFivetranReadOnlyTool } from "@/lib/connectors/fivetranAgentBridge";
+import {
+  getFivetranPublicAliasMap,
+  invokeFivetranReadOnlyTool,
+} from "@/lib/connectors/fivetranAgentBridge";
+import {
+  resolveSanitizedToolArguments,
+  sanitizeFivetranAgentToolResult,
+} from "@/lib/connectors/fivetranPublicSanitizer";
 
 const EXECUTION_SHAPED_KEYS = [
   "approvalId",
@@ -49,9 +56,15 @@ export async function POST(request: Request) {
     }
 
     const body = AgentFivetranRequestSchema.parse(rawBody);
-    const result = await invokeFivetranReadOnlyTool(body.tool, body.arguments ?? {});
+    const aliasMap = await getFivetranPublicAliasMap();
+    const resolvedArgs = resolveSanitizedToolArguments(
+      body.tool,
+      body.arguments ?? {},
+      aliasMap,
+    );
+    const result = await invokeFivetranReadOnlyTool(body.tool, resolvedArgs);
 
-    return NextResponse.json(result);
+    return NextResponse.json(sanitizeFivetranAgentToolResult(result, aliasMap));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request payload", details: error.issues }, { status: 400 });

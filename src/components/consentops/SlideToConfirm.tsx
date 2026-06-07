@@ -25,16 +25,19 @@ export function SlideToConfirm({
   const dragging = useRef(false);
   const startX = useRef(0);
   const maxX = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const reset = useCallback(() => {
     setDragX(0);
     dragXRef.current = 0;
     dragging.current = false;
+    setIsDragging(false);
   }, []);
 
   useEffect(() => {
     if (!completed && !loading) {
-      reset();
+      const id = window.setTimeout(reset, 0);
+      return () => window.clearTimeout(id);
     }
   }, [completed, loading, reset]);
 
@@ -43,6 +46,7 @@ export function SlideToConfirm({
     const track = trackRef.current;
     if (!track) return;
     dragging.current = true;
+    setIsDragging(true);
     startX.current = clientX;
     maxX.current = track.offsetWidth - 56;
   };
@@ -59,6 +63,7 @@ export function SlideToConfirm({
   const onEnd = async () => {
     if (!dragging.current || completed || loading) return;
     dragging.current = false;
+    setIsDragging(false);
     const x = dragXRef.current;
     if (x > maxX.current * 0.9) {
       setDragX(maxX.current);
@@ -107,7 +112,7 @@ export function SlideToConfirm({
               ? "bg-cops-on-tertiary-container text-white"
               : "bg-cops-secondary text-cops-on-secondary"
           }`}
-          style={{ transform: `translateX(${dragX}px)`, transition: dragging.current ? "none" : "transform 0.3s ease" }}
+          style={{ transform: `translateX(${dragX}px)`, transition: isDragging ? "none" : "transform 0.3s ease" }}
           onMouseDown={(e) => onStart(e.clientX)}
           onTouchStart={(e) => onStart(e.touches[0]?.clientX ?? 0)}
         >

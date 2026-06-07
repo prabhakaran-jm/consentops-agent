@@ -28,6 +28,8 @@ describe("POST /api/agent/scan", () => {
     expect(body.scan.mcpTrace).toHaveLength(5);
     expect(body.scan.pipelineLineage.length).toBeGreaterThan(0);
     expect(body.scan.mcpToolsRun).toBe(5);
+    expect(body.scan.warehouseScanContext.scanSource).toBe("local_json");
+    expect(body.scan.warehouseScanContext.fixtureMatchCount).toBe(37);
     expect(body.summaryForAgent.recordsFound).toBe(37);
     expect(body.plan).toBeUndefined();
   });

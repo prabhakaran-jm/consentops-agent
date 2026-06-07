@@ -401,6 +401,9 @@ export const retainedPaymentActions = retainedActions.filter(
   (action) => action.table === "payments_transactions",
 );
 
+/** Authoritative fixture match count for Ana Reyes when all seven demo tables are loaded. */
+export const DEMO_ANA_REYES_FIXTURE_MATCH_COUNT = demoMatchedRecords.length;
+
 export const demoCleanupPlan: CleanupPlan = {
   id: "plan_ana_20260602",
   subjectId: demoSubject.id,

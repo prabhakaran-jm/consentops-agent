@@ -245,7 +245,7 @@ Walk through this checklist on the hosted URL (synthetic Ana Reyes fixture):
 
 - [ ] Open the hosted URL in a browser
 - [ ] Confirm the audit panel initially shows **No execution yet**
-- [ ] Click **Scan data spread** and confirm matches appear (**25** records on hosted BigQuery for Ana Reyes; **37** on local JSON)
+- [ ] Click **Scan data spread** and confirm matches appear (quote live `beforeCount`; **37** after `npm run bigquery:setup` with all seven tables)
 - [ ] Confirm Fivetran connector cards appear in the connector panel
 - [ ] Click **Generate cleanup plan** and confirm classified actions load
 - [ ] Select one or more actions for approval

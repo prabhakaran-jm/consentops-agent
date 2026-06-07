@@ -91,7 +91,7 @@ Try:
 **Expect the agent to:**
 
 - Call `consentOpsScanWarehouse`, then `consentOpsBuildPlan`
-- Report the exact `scan.matchCount` from the tool (BigQuery on Cloud Run is typically **25**; local JSON fixtures are **37** — do not hardcode)
+- Report the exact `scan.matchCount` / `scan.beforeCount` from the tool — do not hardcode (fixtures expect **37** when all seven demo tables are loaded)
 - Mention Fivetran connector count (read-only)
 - State `source: gemini` or `deterministic`
 - Link to the **ConsentOps dashboard** for approval and execution

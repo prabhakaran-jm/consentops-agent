@@ -41,7 +41,7 @@ adk web consentops-adk --port 8081
 
 > Scan the demo subject and summarize where data spread. Propose cleanup at a high level — do not execute anything.
 
-Expect MCP discovery tools (when credentials set), then `consentOpsScanWarehouse` and `consentOpsBuildPlan`. Quote exact `summaryForAgent.recordsFound` (BigQuery on Cloud Run is typically **25**; local JSON **37**), then link to the web UI for approval.
+Expect MCP discovery tools (when credentials set), then `consentOpsScanWarehouse` and `consentOpsBuildPlan`. Quote exact `summaryForAgent.recordsFound` from the live scan (fixtures expect **37** when fully seeded), then link to the web UI for approval.
 
 ## Layout
 

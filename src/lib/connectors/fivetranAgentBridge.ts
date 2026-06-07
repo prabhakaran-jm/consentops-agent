@@ -5,6 +5,10 @@ import {
   parseFivetranConnectionItems,
 } from "@/lib/connectors/fivetranRestClient";
 import {
+  buildFivetranAliasMap,
+  connectionItemsFromListPayload,
+} from "@/lib/connectors/fivetranPublicSanitizer";
+import {
   getFivetranMcpRuntimeConfig,
   LIST_CONNECTIONS_SCHEMA,
   openFivetranMcpSession,
@@ -53,7 +57,7 @@ export const isEmptyFivetranToolData = (data: unknown): boolean => {
 };
 
 const connectionItemsFromPayload = (payload: unknown): ConnectionItem[] =>
-  parseFivetranConnectionItems(payload) as ConnectionItem[];
+  connectionItemsFromListPayload(payload);
 
 const inferDestinationType = (service: string | undefined): string => {
   if (!service) return "warehouse";
@@ -205,6 +209,14 @@ const connectorToConnectionItem = (connector: FivetranConnector) => ({
   health: connector.health,
   description: connector.description,
 });
+
+const aliasMapFromAdapter = async () => {
+  const connectors = await getFivetranAdapter().listConnectors();
+  return buildFivetranAliasMap(connectors.map(connectorToConnectionItem));
+};
+
+export const getFivetranPublicAliasMap = async (): Promise<ReturnType<typeof buildFivetranAliasMap>> =>
+  aliasMapFromAdapter();
 
 const fallbackViaAdapter = async (
   tool: string,
