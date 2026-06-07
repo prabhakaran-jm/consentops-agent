@@ -1,5 +1,30 @@
 # ConsentOps Agent
 
+[![CI](https://github.com/prabhakaran-jm/ConsentOps-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/prabhakaran-jm/ConsentOps-Agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
+[![Live demo](https://img.shields.io/badge/demo-Cloud_Run-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://consentops-agent-538209538110.us-central1.run.app)
+![Synthetic data only](https://img.shields.io/badge/data-synthetic_only-f59e0b?style=flat-square)
+![Human-in-the-loop](https://img.shields.io/badge/cleanup-human_approved-8b5cf6?style=flat-square)
+
+**App** &nbsp;
+![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![Zod](https://img.shields.io/badge/Zod-3E67B1?style=flat-square&logo=zod&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat-square&logo=vitest&logoColor=white)
+
+**Cloud · AI · Data** &nbsp;
+![Google Cloud](https://img.shields.io/badge/Google_Cloud-4285F4?style=flat-square&logo=googlecloud&logoColor=white)
+![Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=flat-square&logo=googlecloud&logoColor=white)
+![BigQuery](https://img.shields.io/badge/BigQuery-669DF6?style=flat-square&logo=googlebigquery&logoColor=white)
+![Vertex AI Agent Engine](https://img.shields.io/badge/Vertex_AI_Agent_Engine-4285F4?style=flat-square&logo=googlecloud&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)
+![Fivetran MCP](https://img.shields.io/badge/Fivetran_MCP-4255FF?style=flat-square&logo=fivetran&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=flat-square&logo=terraform&logoColor=white)
+
 **An operational agent that helps teams find, approve, execute, and document data cleanup steps — using synthetic demo data only.**
 
 ConsentOps is **not** a compliance guarantee. It is a human-in-the-loop workflow agent for consent-withdrawal operations: discover where a subject’s data landed, classify what to do with each record, wait for explicit approval, run only approved actions, re-scan to verify, and produce an audit trail.
