@@ -58,4 +58,5 @@ next-env.d.ts
 
 docs/**
 .cursor/**
-.vscode/****/__pycache__/
+**/__pycache__/
+**/*.pyc

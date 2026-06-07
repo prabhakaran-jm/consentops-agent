@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { POST as postAgentPlanRoute } from "@/app/api/agent/plan/route";
+import { POST as postAgentScanRoute } from "@/app/api/agent/scan/route";
 import { resetDemoWorkflowStateForTests } from "@/lib/demo/demoWorkflowState";
 
 describe("POST /api/agent/plan", () => {
@@ -8,7 +9,15 @@ describe("POST /api/agent/plan", () => {
     resetDemoWorkflowStateForTests();
   });
 
-  it("returns scan summary and plan with planner provenance", async () => {
+  it("returns plan with planner provenance after scan", async () => {
+    await postAgentScanRoute(
+      new Request("http://localhost/api/agent/scan", {
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
     const response = await postAgentPlanRoute(
       new Request("http://localhost/api/agent/plan", {
         method: "POST",
@@ -20,15 +29,14 @@ describe("POST /api/agent/plan", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
 
-    expect(body.capability).toBe("scan_and_plan_only");
+    expect(body.capability).toBe("plan_only");
     expect(body.disclaimer).toMatch(/does not execute cleanup/i);
-    expect(body.scan.beforeCount).toBe(37);
-    expect(body.scan.matchCount).toBe(37);
-    expect(body.scan.fivetran.connectionCount).toBeGreaterThan(0);
     expect(body.plan.totalMatchesBeforeCleanup).toBe(37);
     expect(body.source).toBe("deterministic");
     expect(Array.isArray(body.blockedActions)).toBe(true);
-    expect(JSON.stringify(body.scan.fivetran)).not.toContain("conn_zendesk_mock");
+    expect(body.summaryForAgent.recordsFound).toBe(37);
+    expect(body.summaryForAgent.actionsByClassification.delete).toBeGreaterThan(0);
+    expect(body.scan).toBeUndefined();
   });
 
   it("rejects execution-shaped payloads with approval fields", async () => {

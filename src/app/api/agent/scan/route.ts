@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { buildDemoPlan } from "@/lib/demo/demoWorkflowService";
+import { runDemoScan } from "@/lib/demo/demoWorkflowService";
 
 const EXECUTION_SHAPED_KEYS = [
   "approvalId",
@@ -13,7 +13,7 @@ const EXECUTION_SHAPED_KEYS = [
   "actionsToExecute",
 ] as const;
 
-const AgentPlanRequestSchema = z
+const AgentScanRequestSchema = z
   .object({
     subject: z
       .object({
@@ -52,38 +52,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: executionRejectReason }, { status: 400 });
     }
 
-    const body = AgentPlanRequestSchema.parse(rawBody);
-    const planResult = await buildDemoPlan({
-      subject: body?.subject,
-    });
+    const body = AgentScanRequestSchema.parse(rawBody);
+    const subjectOverride =
+      body?.subject && Object.keys(body.subject).length > 0 ? body.subject : undefined;
+    const scan = await runDemoScan(subjectOverride as Parameters<typeof runDemoScan>[0]);
 
-    const actions = planResult.plan.actions;
-    const byClassification = actions.reduce<Record<string, number>>((acc, action) => {
-      acc[action.classification] = (acc[action.classification] ?? 0) + 1;
-      return acc;
-    }, {});
+    const spreadMap = scan.spreadMap;
+    const tableTotals = Object.fromEntries(
+      Object.entries(spreadMap).map(([table, row]) => [table, row?.totalMatches ?? 0]),
+    );
 
     return NextResponse.json({
-      capability: "plan_only",
+      capability: "scan_only",
       disclaimer:
-        "Synthetic demo data only. This endpoint does not execute cleanup. Human approval and execution remain in the ConsentOps web UI.",
-      plan: planResult.plan,
-      source: planResult.source,
-      warning: planResult.warning,
-      blockedActions: planResult.blockedActions,
+        "Synthetic demo data only. This endpoint does not plan or execute cleanup. Human approval and execution remain in the ConsentOps web UI.",
+      scan: {
+        subject: scan.subject,
+        fivetran: scan.fivetran,
+        beforeCount: scan.beforeCount,
+        spreadMap: scan.spreadMap,
+        matchCount: scan.matches.length,
+        scanSource: scan.scanSource,
+      },
       summaryForAgent: {
-        recordsFound: planResult.plan.totalMatchesBeforeCleanup,
-        actionsByClassification: byClassification,
-        plannerSource: planResult.source,
+        recordsFound: scan.matches.length,
+        spreadByTable: tableTotals,
         instruction:
-          "Use summaryForAgent.recordsFound and actionsByClassification in your summary. Do not execute cleanup via chat.",
+          "Use summaryForAgent.recordsFound as the authoritative record count. Call consentOpsBuildPlan next.",
       },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request payload", details: error.issues }, { status: 400 });
     }
-    const message = error instanceof Error ? error.message : "Unexpected agent plan failure";
+    const message = error instanceof Error ? error.message : "Unexpected agent scan failure";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
