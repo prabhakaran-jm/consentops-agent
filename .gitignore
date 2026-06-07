@@ -62,6 +62,7 @@ docs/**
 !docs/cloud-run-deployment.md
 !docs/bigquery-demo-setup.md
 !docs/fivetran-mcp.md
+!docs/consentops-architecture.svg
 !docs/openapi/
 !docs/openapi/**
 .cursor/**

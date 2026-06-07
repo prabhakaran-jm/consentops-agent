@@ -93,86 +93,76 @@ Designed so destructive work cannot run by accident:
 
 Hosted Cloud Run uses **`bigquery_full`** (scan, execute, and verify on BigQuery). Local dev defaults to **in-memory JSON fixtures** unless you configure BigQuery. Fivetran runs **read-only MCP discovery** at scan time when credentials are set.
 
+![ConsentOps architecture — Cloud Run, BigQuery, Fivetran MCP, Gemini, safety gate](docs/consentops-architecture.svg)
+
+<details>
+<summary>Mermaid version (GitHub-native)</summary>
+
 ```mermaid
 flowchart TB
-  subgraph UI["Dashboard · Next.js"]
+  User(["User • Browser"]):::user
+
+  subgraph CRS["Cloud Run Services"]
     direction TB
-    S1[Scan data spread]
-    S2[Generate cleanup plan]
-    S3[Select & approve actions]
-    S4[Execute approved cleanup]
-    S5[View audit report]
+    Web["ConsentOps Web App — Next.js<br/>Dashboard + API routes<br/>/api/scan · /api/plan · /api/execute · /api/audit"]:::run
+    Engine["In-app Workflow Engine<br/>Consent Planner · Safety Policy<br/>Cleanup Executor · Audit Report"]:::run
   end
 
-  subgraph API["API routes · Cloud Run"]
+  subgraph AE["Vertex AI Agent Engine"]
     direction TB
-    RScan["/api/scan"]
-    RPlan["/api/plan"]
-    RExec["/api/execute"]
-    RAudit["/api/audit"]
-    RAgentScan["/api/agent/scan"]
-    RAgentPlan["/api/agent/plan"]
-    RAgentFt["/api/agent/fivetran"]
+    ADK["ConsentOps Assistant — ADK<br/>Playground chat • scan + plan only<br/>(read-only, no execute)"]:::ai
   end
 
-  subgraph Plan["Planning agent"]
-    Gemini["Gemini planner"]
-    Det["Deterministic fallback"]
-    Gemini -->|fail / invalid plan| Det
+  subgraph DATA["Google Cloud Data & AI Services"]
+    direction TB
+    BQ[("BigQuery<br/>consentops_demo<br/>(local JSON fixtures in demo mode)")]:::data
+    SM["Secret Manager<br/>GEMINI / FIVETRAN keys"]:::data
+    GEM["Gemini<br/>Developer API (Cloud Run)<br/>Vertex (Agent Engine)"]:::ai
   end
 
-  subgraph FT["Fivetran · read-only"]
-    MCP["MCP runtime · 5 discovery tools"]
-    REST["REST adapter · connector panel"]
+  subgraph FT["Fivetran — Data Movement (Partner)"]
+    direction TB
+    MCP["Fivetran MCP<br/>read-only pipeline discovery"]:::partner
+    CONN["Connectors<br/>CRM · commerce · support<br/>marketing · analytics · payments"]:::partner
   end
 
-  subgraph WH["Warehouse · mode-controlled"]
-    BQ[("BigQuery · consentops_demo")]
-    LJ[("Local JSON fixtures")]
+  %% ----- edges (order fixed for linkStyle) -----
+  User ==>|HTTPS| Web
+  Web -->|"scan · plan · execute · audit"| Engine
+  Engine -->|"scan · approved DML · live re-scan"| BQ
+  Web -->|"read-only discovery (uvx)"| MCP
+  Engine -->|"plan + deterministic fallback"| GEM
+  CONN ==>|"sync ingest"| BQ
+  ADK -->|"REST /api/agent/scan + /api/agent/plan"| Web
+  ADK -->|"plan (Vertex)"| GEM
+  SM -.->|"keys auto-inject"| Web
+  SM -.->|"keys auto-inject"| ADK
+
+  %% ----- legend -----
+  subgraph LEGEND["Legend"]
+    direction LR
+    A1[" "] -->|Sync / REST| A2[" "]
+    B1[" "] -.->|Async / config| B2[" "]
+    C1[" "] -->|AI / Gemini| C2[" "]
   end
 
-  subgraph Safe["Safety & verification"]
-    Policy["Safety policy"]
-    Exec["Cleanup executor"]
-    Verify["Live re-scan"]
-    Policy --> Exec --> Verify
-  end
+  classDef run fill:#e8f0fe,stroke:#4285f4,color:#1a237e;
+  classDef data fill:#e6f4ea,stroke:#34a853,color:#0b5394;
+  classDef ai fill:#f3e8fd,stroke:#8b5cf6,color:#4a148c;
+  classDef partner fill:#fff4e5,stroke:#f59e0b,color:#7a4f01;
+  classDef user fill:#e8f0fe,stroke:#4285f4,color:#1a237e;
 
-  S1 --> RScan
-  S2 --> RPlan
-  S3 --> RExec
-  S4 --> RExec
-  S5 --> RAudit
-
-  RScan --> MCP
-  RScan --> REST
-  RScan --> BQ
-  RScan --> LJ
-
-  RPlan --> Plan
-  Plan --> BQ
-  Plan --> LJ
-
-  RExec --> Policy
-  Verify --> BQ
-  Verify --> LJ
-
-  RAgentScan --> RScan
-  RAgentPlan --> RPlan
-  RAgentFt --> MCP
-
-  RAudit --> S5
-
-  classDef gcp fill:#dce9ff,stroke:#006398,stroke-width:2px,color:#0b1c30
-  classDef ft fill:#e6f4ea,stroke:#009668,stroke-width:2px,color:#0b1c30
-  classDef wh fill:#eff4ff,stroke:#006398,stroke-width:2px,color:#0b1c30
-  classDef safe fill:#fff8e1,stroke:#006398,stroke-width:1px,color:#0b1c30
-
-  class BQ,LJ wh
-  class MCP,REST ft
-  class Gemini,Det,RAgentScan,RAgentPlan,RAgentFt gcp
-  class Policy,Exec,Verify safe
+  %% AI links (purple): Engine->GEM (4), ADK->GEM (7)
+  linkStyle 4,7 stroke:#8b5cf6,stroke-width:2px;
+  %% Async/config links (dashed orange): SM->Web (8), SM->ADK (9)
+  linkStyle 8,9 stroke:#f59e0b,stroke-width:1.5px,stroke-dasharray:6 4;
+  %% Legend strokes: sync (10), async (11), AI (12)
+  linkStyle 10 stroke:#5f6368;
+  linkStyle 11 stroke:#f59e0b,stroke-dasharray:6 4;
+  linkStyle 12 stroke:#8b5cf6;
 ```
+
+</details>
 
 | Layer | Components |
 |-------|------------|
