@@ -1,6 +1,6 @@
 # Cloud Run deployment
 
-Deploy ConsentOps Agent as a container on [Google Cloud Run](https://cloud.google.com/run). The hackathon demo runs on **synthetic fixtures only** — do not load real personal data into this deployment.
+Deploy ConsentOps Agent as a container on [Google Cloud Run](https://cloud.google.com/run). Uses **synthetic fixtures only** — do not load real personal data.
 
 ## Prerequisites
 
@@ -254,8 +254,4 @@ Walk through this checklist on the hosted URL (synthetic Ana Reyes fixture):
 - [ ] Confirm the after count is based on a **live re-scan**, not a static fixture value
 - [ ] Confirm **Platform status** card loads on the hosted URL
 
-## Submission assets
-
-- [Demo video script](demo-video-script.md)
-- [Devpost copy](devpost-submission.md)
-- [Platform proof plan](platform-proof-plan.md)
+See also: [bigquery-demo-setup.md](bigquery-demo-setup.md), [fivetran-mcp.md](fivetran-mcp.md).

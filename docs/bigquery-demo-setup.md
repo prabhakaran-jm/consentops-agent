@@ -2,87 +2,74 @@
 
 Load the **same fictional Ana Reyes records** as `src/lib/demo/seedData.ts` into BigQuery. Do not load real personal data.
 
-## Automated setup (recommended)
+## Automated setup
 
 ### Prerequisites
 
 - `gcloud auth application-default login --project=YOUR_PROJECT_ID`
-- BigQuery permissions: **BigQuery Admin** (or Data Editor + Job User) on the project
-- In `.env.local` (or `.env`):
+- BigQuery permissions: **BigQuery Admin** (or Data Editor + Job User)
+- In `.env.local`:
 
   ```env
   GOOGLE_CLOUD_PROJECT=your-project
   BIGQUERY_DATASET=consentops_demo
-  CONSENTOPS_WAREHOUSE_MODE=bigquery_scan
+  CONSENTOPS_WAREHOUSE_MODE=bigquery_full
   ```
 
-### One command
-
-From the repo root:
+### Load fixtures
 
 ```bash
 npm install
-npm run bigquery:setup:dry-run   # preview only
-npm run bigquery:setup           # create dataset, tables, load all fixture rows
+npm run bigquery:setup:dry-run   # preview
+npm run bigquery:setup           # create dataset, tables, load rows
 ```
 
-The script:
+Creates dataset `BIGQUERY_DATASET`, seven tables (`scripts/bigquery/demo-schema.sql`), and inserts all rows from `seedData.ts`.
 
-1. Creates dataset `BIGQUERY_DATASET` (location `US`, override with `--location=EU`)
-2. Creates seven demo tables (schema in `scripts/bigquery/demo-schema.sql`)
-3. Truncates existing demo tables (idempotent re-runs)
-4. Inserts every row from `demoWarehouseTables` in `seedData.ts` with matching **record ids**
+Restart the app and scan — expect `scanSource: "bigquery"`. Hosted Cloud Run typically returns **25** matches for Ana Reyes; local JSON fixtures return **37**.
 
-Then restart the app and run the UI scan — you should see `scanSource: "bigquery"` on `/api/scan` when mode is `bigquery_scan` or `bigquery_full`.
+## Warehouse modes
 
-### Verify row counts
-
-```bash
-bq query --use_legacy_sql=false "
-SELECT 'crm_customers' AS table, COUNT(*) AS rows FROM \`PROJECT.consentops_demo.crm_customers\`
-UNION ALL SELECT 'commerce_orders', COUNT(*) FROM \`PROJECT.consentops_demo.commerce_orders\`
-"
-```
-
-Expect **37** Ana Reyes matches on scan with local JSON fixtures. Hosted BigQuery on Cloud Run typically returns **25** matches (same subject, live warehouse rows).
-
-## Manual setup (optional)
-
-If you prefer SQL only:
-
-```bash
-export PROJECT_ID=your-project
-export DATASET=consentops_demo
-bq mk --dataset --location=US "${PROJECT_ID}:${DATASET}"
-bq query --project_id="${PROJECT_ID}" --use_legacy_sql=false < scripts/bigquery/demo-schema.sql
-```
-
-Then load rows manually or re-run `npm run bigquery:setup`.
-
-## App modes
-
-| `CONSENTOPS_WAREHOUSE_MODE` | Scan | Execute |
-|-----------------------------|------|---------|
+| `CONSENTOPS_WAREHOUSE_MODE` | Scan | Execute / verify |
+|-----------------------------|------|-------------------|
 | `local_json` | Local JSON | Local JSON |
-| `bigquery_scan` | BigQuery | Local JSON (ids must match BQ load) |
-| `bigquery_full` | BigQuery | BigQuery DML |
+| `bigquery_scan` | BigQuery | Local JSON |
+| **`bigquery_full`** | **BigQuery** | **BigQuery DML** |
 
-For execute + verify on BigQuery:
+Use **`bigquery_full`** when you want the audit **after** count to drop after approved deletes/anonymizes.
+
+## Fivetran + BigQuery (optional)
+
+Fivetran connectors provide the **ingestion story**; cleanup targets **`consentops_demo`** (loaded above). You do not need Fivetran to replicate into that dataset for the demo flow.
 
 ```env
-CONSENTOPS_WAREHOUSE_MODE=bigquery_full
+FIVETRAN_API_KEY=your_key
+FIVETRAN_API_SECRET=your_secret
+FIVETRAN_MCP_RUNTIME=true
+FIVETRAN_ALLOW_WRITES=false
 ```
 
-For **Fivetran live connectors + BigQuery cleanup** (partner-track narrative), see [fivetran-bigquery-demo.md](fivetran-bigquery-demo.md).
+See [fivetran-mcp.md](./fivetran-mcp.md) for MCP setup. If the connector panel shows **0 connections**, add a connector in the [Fivetran dashboard](https://fivetran.com/dashboard) and scan again.
 
-## Cloud Run IAM
+**End-to-end:** Scan → Generate plan (Step 4) → Approve → Execute → Audit. Platform status should show `Warehouse: bigquery_full`, `Fivetran: live_read_only` or `mcp_runtime`.
 
-Grant the runtime service account:
+## IAM (Cloud Run or local ADC)
 
-- `roles/bigquery.dataViewer` — scan
-- `roles/bigquery.dataEditor` — only for `bigquery_full`
-- `roles/bigquery.jobUser` — run queries
+| Role | Purpose |
+|------|---------|
+| `roles/bigquery.dataViewer` | Scan |
+| `roles/bigquery.dataEditor` | Execute (`bigquery_full` only) |
+| `roles/bigquery.jobUser` | Run queries |
 
-## Demo safety
+When `DEMO_MODE=true` or `CONSENTOPS_DEMO_MODE=true`, operations are restricted to synthetic subject `subj_ana_reyes`.
 
-When `DEMO_MODE=true` or `CONSENTOPS_DEMO_MODE=true`, warehouse operations are restricted to synthetic subject `subj_ana_reyes`.
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Execute uses `local_json` | Set `CONSENTOPS_WAREHOUSE_MODE=bigquery_full` and restart |
+| Permission errors on execute | Add `bigquery.dataEditor` + `jobUser` |
+| After count unchanged after deletes | Likely on `bigquery_scan` — switch to `bigquery_full` |
+| Scan 0 matches | Run `npm run bigquery:setup`; check project/dataset env vars |
+
+Deploy with the same env on Cloud Run: [cloud-run-deployment.md](./cloud-run-deployment.md).

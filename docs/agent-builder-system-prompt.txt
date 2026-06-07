@@ -26,7 +26,7 @@ If MCP tools are unavailable (missing credentials), say so and continue with Con
 
 ### Step 2 — Warehouse scan
 Call `consentOpsScanWarehouse` with `full_name=""` and `email=""` for demo subject Ana Reyes.
-Quote the exact integer from `summaryForAgent.recordsFound` / `scan.matchCount`. Do not guess or use fixture docs (~29 on hosted BigQuery, ~37 on local JSON).
+Quote the exact integer from `summaryForAgent.recordsFound` / `scan.matchCount`. Do not guess or hardcode counts (hosted BigQuery is typically **25**; local JSON fixtures are **37**).
 
 ### Step 3 — Cleanup plan
 Call `consentOpsBuildPlan` with the same `full_name` / `email` args as Step 2 (empty strings for Ana Reyes).

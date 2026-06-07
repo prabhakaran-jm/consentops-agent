@@ -55,31 +55,21 @@ The agent proposes and coordinates; **humans approve**. Nothing destructive runs
 | **Gemini** | Optional cleanup planning via `GEMINI_API_KEY`; deterministic fallback when absent or on failure | Implemented |
 | **Cloud Run** | Container deployment for hosted demos | Documented ([deployment guide](docs/cloud-run-deployment.md)); [Terraform IaC](infra/terraform/README.md) |
 | **Platform status** | `GET /api/status` — planner mode, adapter modes (no secrets) | Implemented |
-| **Agent tool API** | `POST /api/agent/plan` — scan + plan only ([OpenAPI](docs/openapi/consentops-agent.yaml); [Agent Builder setup](docs/agent-builder-setup.md)) | Implemented |
+| **Agent tool API** | `POST /api/agent/scan` + `POST /api/agent/plan` — read-only ([OpenAPI](docs/openapi/consentops-agent.yaml); [Agent Builder setup](docs/agent-builder-setup.md)) | Implemented |
 | **BigQuery** | Synthetic warehouse scan / execute / verify (mode-controlled) | Implemented (`CONSENTOPS_WAREHOUSE_MODE`) |
 | **Secret Manager** | Recommended for `GEMINI_API_KEY` on Cloud Run | Documented, not wired in app |
 
-The hackathon build runs locally on in-memory fixtures. Cloud Run deployment uses Docker + standalone Next.js output.
+The demo runs locally on in-memory fixtures by default. Cloud Run deployment uses Docker + standalone Next.js output.
 
 ---
 
-## Fivetran usage (partner track)
+## Fivetran integration
 
 Fivetran is the **data movement layer**: connectors sync into BigQuery; ConsentOps scans the demo warehouse and runs **approval-gated** cleanup.
 
-**Primary integration (Option 1):** [Fivetran MCP](https://github.com/fivetran/fivetran-mcp) in read-only mode (`FIVETRAN_ALLOW_WRITES=false`). With `FIVETRAN_MCP_RUNTIME=true`, the app calls `list_connections` via MCP at runtime (local dev or Cloud Run — the Docker image includes `uv`); falls back to REST on failure. Evidence: [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md).
+**MCP (primary):** [Fivetran MCP](https://github.com/fivetran/fivetran-mcp) in read-only mode (`FIVETRAN_ALLOW_WRITES=false`). With `FIVETRAN_MCP_RUNTIME=true`, the app runs five discovery tools at scan time; see [docs/fivetran-mcp.md](docs/fivetran-mcp.md).
 
-**Secondary (Option 2):** read-only **REST** mirror when MCP runtime is off or MCP spawn fails; `triggerSync` is disabled.
-
-**Gemini model:** defaults to `gemini-3.5-flash` (Gemini 3 family; override via `GEMINI_MODEL`).
-
-| Capability | Demo |
-|------------|------|
-| Fivetran MCP (primary) | [Evidence doc](docs/fivetran-mcp-evidence.md) + optional `FIVETRAN_MCP_RUNTIME=true` |
-| Connector panel (REST mirror) | `MockFivetranAdapter` without credentials; `RealFivetranAdapter` live read-only REST |
-| Trigger sync | **Never** on live REST; **never** via MCP in read-only mode |
-
-Fivetran **moves data**; ConsentOps **governs cleanup** on synthetic fixtures (BigQuery when `CONSENTOPS_WAREHOUSE_MODE=bigquery_full`).
+**REST (secondary):** read-only connector panel when MCP runtime is off or spawn fails; `triggerSync` is disabled.
 
 ---
 
@@ -199,70 +189,38 @@ npm run lint
 npm run build
 ```
 
-**Deployment:** [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) — Docker + Cloud Run with `--max-instances=1` for judged demos.
+**Deployment:** [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) — Docker + Cloud Run with `--max-instances=1` for in-memory demo state.
 
 ---
 
-## Platform proof (hackathon)
+## Documentation
 
-ConsentOps is an **operational agent**, not a compliance guarantee. This section maps what is real vs mocked for judges.
-
-### Hosted demo URL
-
-| Field | Value |
-|-------|-------|
-| **Cloud Run URL** | https://consentops-agent-538209538110.us-central1.run.app |
-| **Local URL** | [http://localhost:3000](http://localhost:3000) |
-
-Deploy steps: [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md). Use `--max-instances=1` so in-memory scan → plan → execute → audit stays on one instance.
-
-**Dashboard screenshots** for judges: attach platform status + Fivetran panel + audit to Devpost, or see [docs/screenshots/README.md](docs/screenshots/README.md).
-
-### Real vs mocked
-
-| Capability | Status | Notes |
-|------------|--------|-------|
-| Synthetic local warehouse (Ana Reyes, 37 matches) | **IMPLEMENTED** | `src/lib/demo/seedData.ts` |
-| Scan → plan → approve → execute → audit UI | **IMPLEMENTED** | Human gate on execute |
-| Safety policy (payments retain-only, no table-wide) | **IMPLEMENTED** | `src/lib/execution/safetyPolicy.ts` |
-| Gemini planner + deterministic fallback | **IMPLEMENTED** | `src/lib/agent/consentPlanner.ts` |
-| Planner provenance badge (Gemini vs fallback) | **IMPLEMENTED** | Shown in cleanup plan panel + `POST /api/plan` |
-| `GET /api/status` + platform status card | **IMPLEMENTED** | No secrets in response |
-| Fivetran MCP (Option 1, primary) | **IMPLEMENTED** | Cursor evidence doc + optional `FIVETRAN_MCP_RUNTIME=true` (`list_connections` via MCP; REST fallback) |
-| Fivetran REST panel (Option 2, UI mirror) | **IMPLEMENTED** | Mock without credentials; live REST when configured |
-| `POST /api/agent/plan` (scan + plan only) | **IMPLEMENTED** | Rejects execution-shaped payloads |
-| OpenAPI agent spec | **IMPLEMENTED** | [docs/openapi/](docs/openapi/) |
-| Cloud Run + Docker image | **IMPLEMENTED** | https://consentops-agent-538209538110.us-central1.run.app |
-| Secret Manager for Gemini key | **DOCUMENTED** | Not wired in code |
-| Real Fivetran REST status (secondary) | **IMPLEMENTED** | Read-only `GET /v1/connections`; mirrors MCP story in UI |
-| BigQuery warehouse | **IMPLEMENTED** | Modes: `local_json`, `bigquery_scan`, `bigquery_full` via `CONSENTOPS_WAREHOUSE_MODE` |
-| Fivetran + BigQuery demo | **DOCUMENTED** | [fivetran-bigquery-demo.md](docs/fivetran-bigquery-demo.md) — live connectors + `bigquery_full` cleanup |
-| `DEMO_MODE` env-driven adapter switch | **PLANNED** | Flag documented; not read by app yet |
-| Durable workflow state | **PLANNED** | In-memory today |
-
-### Proof documents
-
-| Document | Purpose |
-|----------|---------|
-| [docs/platform-proof-plan.md](docs/platform-proof-plan.md) | Step-by-step submission checklist |
-| [docs/fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md) | **Primary** Fivetran integration (Option 1 MCP, read-only) |
-| [docs/openapi/README.md](docs/openapi/README.md) | Import `POST /api/agent/plan` as an agent tool |
-| [docs/agent-builder-setup.md](docs/agent-builder-setup.md) | Vertex AI Agent Builder chat front-end (scan + plan only) |
+| Guide | Purpose |
+|-------|---------|
 | [docs/cloud-run-deployment.md](docs/cloud-run-deployment.md) | Build, deploy, verify hosted demo |
-| [docs/bigquery-demo-setup.md](docs/bigquery-demo-setup.md) | `npm run bigquery:setup` — load synthetic Ana Reyes tables into BigQuery |
-| [infra/terraform/README.md](infra/terraform/README.md) | Terraform IaC for Cloud Run |
-| [docs/demo-video-script.md](docs/demo-video-script.md) | ~3 min judging video beat sheet |
-| [docs/devpost-submission.md](docs/devpost-submission.md) | Devpost copy blocks |
+| [docs/agent-builder-setup.md](docs/agent-builder-setup.md) | ADK local chat + Agent Engine deploy |
+| [docs/fivetran-mcp.md](docs/fivetran-mcp.md) | Fivetran MCP read-only integration |
+| [docs/bigquery-demo-setup.md](docs/bigquery-demo-setup.md) | Load synthetic fixtures + `bigquery_full` mode |
+| [docs/openapi/](docs/openapi/) | Read-only agent API (`/api/agent/scan`, `/api/agent/plan`) |
+| [consentops-adk/README.md](consentops-adk/README.md) | ADK agent package |
+| [infra/terraform/README.md](infra/terraform/README.md) | Terraform IaC |
 
-### Pre-submission gate
+**Hosted demo:** https://consentops-agent-538209538110.us-central1.run.app
 
-Do not submit until:
+### Capabilities (real vs mocked)
 
-- [x] Cloud Run URL works — https://consentops-agent-538209538110.us-central1.run.app
-- [ ] Demo video recorded and linked in Devpost (~3 min; [demo-video-script.md](docs/demo-video-script.md))
-- [x] Fivetran MCP (primary) evidence COMPLETED in [fivetran-mcp-evidence.md](docs/fivetran-mcp-evidence.md)
-- [ ] No secrets committed (`.env` stays local)
-- [ ] `npm run lint && npm run typecheck && npm test && npm run build` pass
+| Capability | Status |
+|------------|--------|
+| Scan → plan → approve → execute → audit UI | Implemented |
+| Safety policy (payments retain-only, no table-wide) | Implemented |
+| Gemini planner + deterministic fallback | Implemented |
+| `GET /api/status` | Implemented |
+| Fivetran MCP discovery (5 tools) | Implemented when configured |
+| Fivetran REST panel | Mock without credentials; live when configured |
+| BigQuery `bigquery_full` | Implemented — see setup guide |
+| ADK + Agent Engine | Implemented |
+| Demo subject allowlist (`DEMO_MODE`) | Implemented |
+| Durable workflow state | In-memory only (Cloud Run: use `--max-instances=1`) |
 
 ---
 
@@ -297,7 +255,7 @@ Vitest covers safety-critical paths:
 - API key handling (header auth, redaction in errors)
 - Production placeholder stubs reject without leaking secrets
 - Demo workflow: scan → plan → execute → audit; stale audit cleared on new plan
-- Platform status, agent plan route, OpenAPI spec, Fivetran MCP evidence doc
+- Platform status, agent routes, OpenAPI spec, Fivetran MCP doc
 - Audit report honesty (live re-scan wording, blocked policies)
 
 ```bash

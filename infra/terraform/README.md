@@ -171,4 +171,4 @@ Removes Cloud Run service and optional registry/secret resources created by this
 ## Related docs
 
 - [Cloud Run deployment (gcloud)](../../docs/cloud-run-deployment.md)
-- [Platform proof plan](../../docs/platform-proof-plan.md)
+- [Cloud Run deployment](../../docs/cloud-run-deployment.md)

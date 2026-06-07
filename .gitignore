@@ -58,12 +58,12 @@ next-env.d.ts
 
 docs/**
 !docs/agent-builder-setup.md
-!docs/devpost-submission.md
-!docs/demo-video-script.md
+!docs/agent-builder-system-prompt.txt
 !docs/cloud-run-deployment.md
-!docs/fivetran-bigquery-demo.md
 !docs/bigquery-demo-setup.md
-!docs/fivetran-mcp-evidence.md
+!docs/fivetran-mcp.md
+!docs/openapi/
+!docs/openapi/**
 .cursor/**
 **/__pycache__/
 **/*.pyc

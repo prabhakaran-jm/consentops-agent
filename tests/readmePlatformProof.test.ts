@@ -5,28 +5,27 @@ import { describe, expect, it } from "vitest";
 
 const readmePath = resolve(process.cwd(), "README.md");
 
-describe("README platform proof section", () => {
+describe("README documentation links", () => {
   const raw = readFileSync(readmePath, "utf8");
 
-  it("includes platform proof section with real-vs-mocked table", () => {
-    expect(raw).toMatch(/## Platform proof \(hackathon\)/);
-    expect(raw).toMatch(/### Real vs mocked/);
-    expect(raw).toMatch(/\*\*IMPLEMENTED\*\*/);
-    expect(raw).toMatch(/\*\*PLANNED\*\*/);
-    expect(raw).toMatch(/\*\*DOCUMENTED\*\*/);
-  });
-
-  it("links to proof documents with MCP evidence reference", () => {
-    expect(raw).toContain("docs/platform-proof-plan.md");
-    expect(raw).toContain("docs/fivetran-mcp-evidence.md");
+  it("includes documentation section with core guides", () => {
+    expect(raw).toMatch(/## Documentation/);
+    expect(raw).toContain("docs/cloud-run-deployment.md");
+    expect(raw).toContain("docs/agent-builder-setup.md");
+    expect(raw).toContain("docs/fivetran-mcp.md");
+    expect(raw).toContain("docs/bigquery-demo-setup.md");
     expect(raw).toContain("docs/openapi/");
-    expect(raw).toMatch(/evidence COMPLETED|FIVETRAN_MCP_RUNTIME/i);
   });
 
-  it("includes hosted URL and pre-submission gate", () => {
-    expect(raw).toMatch(/Cloud Run URL/);
-    expect(raw).toMatch(/YOUR_CLOUD_RUN_URL|Add after deploy|\.run\.app/i);
-    expect(raw).toMatch(/Pre-submission gate/);
+  it("does not reference removed submission docs", () => {
+    expect(raw).not.toContain("devpost-submission.md");
+    expect(raw).not.toContain("demo-video-script.md");
+    expect(raw).not.toContain("submission-checklist.md");
+    expect(raw).not.toContain("fivetran-mcp-evidence.md");
+  });
+
+  it("includes hosted URL without committed secrets", () => {
+    expect(raw).toMatch(/\.run\.app/);
     expect(raw).not.toMatch(/GEMINI_API_KEY=AIza/);
   });
 });

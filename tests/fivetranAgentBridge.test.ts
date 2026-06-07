@@ -10,18 +10,18 @@ const sampleListPayload = {
   data: {
     items: [
       {
-        id: "brandy_indictment",
-        group_id: "cashier_physically",
+        id: "connector_01",
+        group_id: "demo_group_01",
         service: "bigquery_db",
         schema: "bigquery_db",
         succeeded_at: "2026-06-07T08:41:39.555000Z",
         status: { setup_state: "connected", sync_state: "scheduled" },
       },
       {
-        id: "motioned_drudgery",
-        group_id: "cashier_physically",
+        id: "connector_02",
+        group_id: "demo_group_01",
         service: "fivetran_log",
-        schema: "fivetran_metadata_cashier_physically",
+        schema: "fivetran_metadata_demo",
         succeeded_at: "2026-06-07T08:42:11.954000Z",
         status: { setup_state: "connected", sync_state: "scheduled" },
       },
@@ -44,7 +44,7 @@ describe("fivetranAgentBridge enrichment", () => {
     ) as Record<string, unknown>;
 
     expect(data.connection_count).toBe(2);
-    expect(data.destination_groups).toEqual(["cashier_physically"]);
+    expect(data.destination_groups).toEqual(["demo_group_01"]);
     expect(data.services).toEqual(expect.arrayContaining(["bigquery_db", "fivetran_log"]));
     expect(data.read_only).toBe(true);
   });
@@ -52,11 +52,11 @@ describe("fivetranAgentBridge enrichment", () => {
   it("enriches get_connection_details from list_connections", () => {
     const data = enrichFivetranToolFromListConnections(
       "get_connection_details",
-      { connection_id: "brandy_indictment" },
+      { connection_id: "connector_01" },
       sampleListPayload,
     ) as Record<string, unknown>;
 
-    expect(data.id).toBe("brandy_indictment");
+    expect(data.id).toBe("connector_01");
     expect(data.service).toBe("bigquery_db");
     expect(data.enrichedFrom).toBe("list_connections");
   });
@@ -64,11 +64,11 @@ describe("fivetranAgentBridge enrichment", () => {
   it("enriches get_connection_state from list_connections", () => {
     const data = enrichFivetranToolFromListConnections(
       "get_connection_state",
-      { connection_id: "motioned_drudgery" },
+      { connection_id: "connector_02" },
       sampleListPayload,
     ) as Record<string, unknown>;
 
-    expect(data.connection_id).toBe("motioned_drudgery");
+    expect(data.connection_id).toBe("connector_02");
     expect(data.sync_state).toBe("scheduled");
     expect(data.succeeded_at).toBe("2026-06-07T08:42:11.954000Z");
   });
@@ -81,7 +81,7 @@ describe("fivetranAgentBridge enrichment", () => {
     ) as { items: Array<{ id: string; connections: unknown[] }> };
 
     expect(data.items).toHaveLength(1);
-    expect(data.items[0]?.id).toBe("cashier_physically");
+    expect(data.items[0]?.id).toBe("demo_group_01");
     expect(data.items[0]?.connections).toHaveLength(2);
   });
 });

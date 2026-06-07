@@ -1,0 +1,82 @@
+# Agent Builder import — hosted Cloud Run only (trimmed from consentops-agent.yaml)
+openapi: 3.1.0
+info:
+  title: ConsentOps Agent API (read-only, Cloud Run)
+  version: 0.1.0
+  description: |
+    Import into Vertex AI Agent Builder as OpenAPI tools.
+
+    Call `consentOpsScanWarehouse` then `consentOpsBuildPlan`.
+    Execution stays in the ConsentOps web UI.
+
+servers:
+  - url: https://consentops-agent-538209538110.us-central1.run.app
+    description: Hosted ConsentOps demo
+
+paths:
+  /api/agent/scan:
+    post:
+      operationId: consentOpsScanWarehouse
+      summary: Scan synthetic warehouse
+      tags:
+        - Agent (read-only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: object
+      responses:
+        "200":
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  capability:
+                    type: string
+                    enum: [scan_only]
+                  scan:
+                    type: object
+                  summaryForAgent:
+                    type: object
+
+  /api/agent/plan:
+    post:
+      operationId: consentOpsBuildPlan
+      summary: Build cleanup plan from latest scan
+      tags:
+        - Agent (read-only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: object
+      responses:
+        "200":
+          description: Plan generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  capability:
+                    type: string
+                    enum: [plan_only]
+                  plan:
+                    type: object
+                  source:
+                    type: string
+                    enum: [gemini, deterministic]
+                  blockedActions:
+                    type: array
+                    items:
+                      type: string

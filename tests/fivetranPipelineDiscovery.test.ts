@@ -22,17 +22,17 @@ const listConnectionsResult = {
     data: {
       items: [
         {
-          id: "brandy_indictment",
-          group_id: "cashier_physically",
+          id: "connector_01",
+          group_id: "demo_group_01",
           service: "bigquery_db",
           schema: "bigquery_db",
           status: { setup_state: "connected", sync_state: "scheduled" },
         },
         {
-          id: "motioned_drudgery",
-          group_id: "cashier_physically",
+          id: "connector_02",
+          group_id: "demo_group_01",
           service: "fivetran_log",
-          schema: "fivetran_metadata_cashier_physically",
+          schema: "fivetran_metadata_demo",
           status: { setup_state: "connected", sync_state: "scheduled" },
         },
       ],
@@ -59,7 +59,7 @@ describe("fivetranPipelineDiscovery", () => {
           ...listConnectionsResult,
           tool,
           data: listConnectionsResult.data.data.items[0],
-          summaryForAgent: "Connection details for brandy_indictment.",
+          summaryForAgent: "Connection details for connector_01.",
         };
       }
       if (tool === "get_connection_state") {
@@ -67,18 +67,18 @@ describe("fivetranPipelineDiscovery", () => {
           ...listConnectionsResult,
           tool,
           data: {
-            connection_id: "brandy_indictment",
+            connection_id: "connector_01",
             sync_state: "scheduled",
             setup_state: "connected",
           },
-          summaryForAgent: "State for brandy_indictment.",
+          summaryForAgent: "State for connector_01.",
         };
       }
       if (tool === "list_destinations") {
         return {
           ...listConnectionsResult,
           tool,
-          data: { items: [{ id: "cashier_physically", type: "bigquery" }] },
+          data: { items: [{ id: "demo_group_01", type: "bigquery" }] },
           summaryForAgent: "Destinations listed.",
         };
       }

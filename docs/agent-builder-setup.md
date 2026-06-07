@@ -15,18 +15,20 @@ Use a **conversational front-end** that calls your hosted ConsentOps read-only A
 sequenceDiagram
   participant User
   participant Chat as ADK_or_Agent_Builder
-  participant API as POST_api_agent_plan
+  participant API as POST_api_agent_scan_and_plan
   participant UI as ConsentOps_Web_UI
 
   User->>Chat: "Scan Ana Reyes and propose cleanup"
-  Chat->>API: consentOpsScanAndPlan {}
-  API-->>Chat: scan + plan + source + disclaimer
+  Chat->>API: consentOpsScanWarehouse {}
+  API-->>Chat: scan + MCP trace
+  Chat->>API: consentOpsBuildPlan {}
+  API-->>Chat: plan + source + disclaimer
   Chat-->>User: Summary + link to dashboard
   User->>UI: Select actions → Execute → Audit
   Note over Chat,UI: No execute via chat
 ```
 
-ConsentOps on Cloud Run still owns Gemini planning, BigQuery scan, and Fivetran MCP at runtime. The chat layer only orchestrates the **one** read-only OpenAPI operation.
+ConsentOps on Cloud Run still owns Gemini planning, BigQuery scan, and Fivetran MCP at runtime. The chat layer orchestrates **two** read-only OpenAPI operations (scan, then plan).
 
 ---
 
@@ -39,18 +41,26 @@ ConsentOps on Cloud Run still owns Gemini planning, BigQuery scan, and Fivetran 
 Verify the tool endpoint:
 
 ```bash
+curl -s -X POST https://consentops-agent-538209538110.us-central1.run.app/api/agent/scan \
+  -H "Content-Type: application/json" \
+  -d '{}' | head -c 400
+```
+
+Expect `"capability":"scan_only"`. Then:
+
+```bash
 curl -s -X POST https://consentops-agent-538209538110.us-central1.run.app/api/agent/plan \
   -H "Content-Type: application/json" \
   -d '{}' | head -c 400
 ```
 
-Expect `"capability":"scan_and_plan_only"` and `"source":"gemini"` or `"deterministic"`.
+Expect `"capability":"plan_only"` and `"source":"gemini"` or `"deterministic"`.
 
 ---
 
 ## Path A — ADK chat agent (recommended)
 
-**Vertex AI Agent Builder Studio** (Flow UI) currently exposes **Google Search, URL Context, Vertex AI Search, and MCP Server** — not a first-class OpenAPI tool import. Use the ADK project in this repo instead; it exposes the same `consentOpsScanAndPlan` tool against Cloud Run.
+**Vertex AI Agent Builder Studio** (Flow UI) currently exposes **Google Search, URL Context, Vertex AI Search, and MCP Server** — not a first-class OpenAPI tool import. Use the ADK project in this repo instead; it exposes `consentOpsScanWarehouse` and `consentOpsBuildPlan` against Cloud Run.
 
 ### Step 1 — Install and configure
 
@@ -80,7 +90,7 @@ Try:
 
 **Expect the agent to:**
 
-- Call `consentOpsScanAndPlan`
+- Call `consentOpsScanWarehouse`, then `consentOpsBuildPlan`
 - Report the exact `scan.matchCount` from the tool (BigQuery on Cloud Run is typically **25**; local JSON fixtures are **37** — do not hardcode)
 - Mention Fivetran connector count (read-only)
 - State `source: gemini` or `deterministic`
@@ -97,7 +107,7 @@ More detail: [consentops-adk/README.md](../consentops-adk/README.md).
 If your console version supports **Create tool → OpenAPI**, you can wire the same backend without ADK:
 
 1. **Tools** → **Create tool** → **OpenAPI**
-2. **Name:** `consentOps_scan_and_plan`
+2. **Name:** `consentOps_scan` and `consentOps_plan` (or import both operations from the schema)
 3. **Schema:** paste [openapi/consentops-agent-cloudrun.yaml](./openapi/consentops-agent-cloudrun.yaml)
 4. **Authentication:** None (public Cloud Run demo)
 5. **Create agent** → attach that tool only
@@ -105,7 +115,7 @@ If your console version supports **Create tool → OpenAPI**, you can wire the s
 
 If the Flow UI only shows MCP / built-ins, use **Path A (ADK)** above.
 
-**Studio preview shows only `consentops:consentOpsScanAndPlan` with no result?** The Flow UI referenced the tool name in instructions but did not attach a callable backend (OpenAPI/MCP). Use **Path C** below instead of trying to fix the hand-built Studio agent.
+**Studio preview shows only a single combined scan/plan tool with no result?** The Flow UI referenced tool names in instructions but did not attach callable backends (OpenAPI/MCP). Use **Path C** below instead of trying to fix the hand-built Studio agent.
 
 ---
 
@@ -159,16 +169,6 @@ To update an existing deployment, pass `--agent_engine_id=YOUR_REASONING_ENGINE_
 
 ---
 
-## Demo script (judges / video)
-
-1. **ADK or Agent Builder chat:** ask for scan + plan → show tool call + summary.
-2. **Switch to browser:** open [hosted ConsentOps URL](https://consentops-agent-538209538110.us-central1.run.app).
-3. **UI:** Generate plan (if needed) → select 2–3 delete actions → Execute approved cleanup → show audit (record count depends on warehouse: ~25 BigQuery on Cloud Run, ~37 local JSON).
-
-This shows **two surfaces, one backend**: chat for discovery/planning, UI for human-in-the-loop execution.
-
----
-
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -181,7 +181,7 @@ This shows **two surfaces, one backend**: chat for discovery/planning, UI for hu
 | Playground **404 NOT_FOUND** on `gemini-3.5-flash` (`publishers/google/models/...`) | **Agent Engine always runs Gemini via Vertex AI** — the ADK reasoning-engine template hard-sets `GOOGLE_GENAI_USE_VERTEXAI=1` at runtime, so a deployment env of `FALSE` (Gemini Developer API + API key) is ignored. `gemini-3.5-flash` is Developer-API-only and a 404 as a Vertex publisher model in `us-central1`. Use a **Vertex-valid** model: set `ADK_GEMINI_MODEL=gemini-2.5-flash` (the agent reads this, not the Cloud Run `GEMINI_MODEL`). Cloud Run keeps `gemini-3.5-flash` on the Developer API |
 | Model/code change **doesn't take effect** after redeploy (still old model) | `agent_engines.update()` updates spec/env but does **not** rebuild the agent container from new code, and the model is baked from `agent.py` at import. After changing the baked model or agent code, **delete the engine + `consentops-adk/.agent_engine_id` and redeploy** (create path) — `vertexai.agent_engines.delete(resource_name, force=True)` |
 | `root_agent not found` | Run `adk web` with **agents dir** `consentops-adk` from repo root; each agent needs `consentops_assistant/agent.py` |
-| Tool timeout / **503 Service Unavailable** on `consentOpsScanAndPlan` | Usually Cloud Run **OOM** during scan+plan (Fivetran MCP `uvx` + BigQuery + Gemini exceeds **512Mi**). Cloud Run logs show `Memory limit of 512 MiB exceeded`. Fix: set service memory to **2Gi** (`gcloud run services update consentops-agent --memory=2Gi` or Terraform `memory = "2Gi"`). Cold start + MCP warmup can also add ~20–30s on first call — retry once after memory is raised |
+| Tool timeout / **503 Service Unavailable** on scan or plan | Usually Cloud Run **OOM** during scan+plan (Fivetran MCP `uvx` + BigQuery + Gemini exceeds **512Mi**). Cloud Run logs show `Memory limit of 512 MiB exceeded`. Fix: set service memory to **2Gi** (`gcloud run services update consentops-agent --memory=2Gi` or Terraform `memory = "2Gi"`). Cold start + MCP warmup can also add ~20–30s on first call — retry once after memory is raised |
 | `400` execution fields rejected | Agent tried to pass approve/execute keys — tighten system prompt |
 | `source: deterministic` only | `GEMINI_API_KEY` missing on Cloud Run or model ID issue — check `/api/status` |
 | Agent hallucinates execution | Reiterate in prompt: execution is **UI only**; repeat API `disclaimer` |
@@ -198,9 +198,3 @@ This shows **two surfaces, one backend**: chat for discovery/planning, UI for hu
 | Real PII | Synthetic demo only |
 
 Full OpenAPI reference: [openapi/README.md](./openapi/README.md).
-
----
-
-## Devpost one-liner
-
-> ConsentOps uses an **ADK / Agent Builder chat front-end** with a read-only `consentOpsScanAndPlan` OpenAPI tool → Cloud Run, while **human approval, BigQuery cleanup, and audit** remain in the ConsentOps web UI.

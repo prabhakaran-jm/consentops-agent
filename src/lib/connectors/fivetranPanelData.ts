@@ -11,7 +11,7 @@ export const FIVETRAN_READ_ONLY_NOTE =
   "Read-only connector status for the demo. No sync triggers, writes, or cleanup via Fivetran.";
 
 export const LIVE_FIVETRAN_EMPTY_CONNECTIONS_HINT =
-  "Live Fivetran API returned 0 connections. Add a connector in the Fivetran dashboard (destination: BigQuery on your GCP project), then run Scan again. See docs/fivetran-bigquery-demo.md.";
+  "Live Fivetran API returned 0 connections. Add a connector in the Fivetran dashboard (destination: BigQuery on your GCP project), then run Scan again. See docs/bigquery-demo-setup.md.";
 
 export type FivetranConnectorPanelItem = {
   displayKey: string;
