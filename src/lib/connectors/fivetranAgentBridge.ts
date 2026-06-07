@@ -1,9 +1,6 @@
 import type { FivetranConnector } from "@/lib/connectors/fivetranAdapter";
 import { getFivetranAdapter, getFivetranIntegrationSource } from "@/lib/connectors/fivetranAdapterFactory";
-import {
-  type FivetranConnectionApiItem,
-  parseFivetranConnectionItems,
-} from "@/lib/connectors/fivetranRestClient";
+import type { FivetranConnectionApiItem } from "@/lib/connectors/fivetranRestClient";
 import {
   buildFivetranAliasMap,
   connectionItemsFromListPayload,
