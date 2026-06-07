@@ -53,13 +53,16 @@ export function SlideToConfirm({
   }, [measureMaxX]);
 
   useEffect(() => {
-    if (completed) {
-      snapToEnd();
-      return;
-    }
-    if (!loading) {
-      reset();
-    }
+    // While executing (loading, not yet completed) leave the knob where the
+    // user dragged it. Otherwise sync the knob to the prop-driven state.
+    if (!completed && loading) return;
+    // Defer to the next frame: snapToEnd() measures the track via the DOM, and
+    // deferring keeps setState out of the effect body (no cascading renders).
+    const raf = requestAnimationFrame(() => {
+      if (completed) snapToEnd();
+      else reset();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [completed, loading, reset, snapToEnd]);
 
   const onMove = useCallback((clientX: number) => {
