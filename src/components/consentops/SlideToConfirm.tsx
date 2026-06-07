@@ -53,14 +53,11 @@ export function SlideToConfirm({
   }, [measureMaxX]);
 
   useEffect(() => {
-    if (completed) {
-      snapToEnd();
-      return;
-    }
-    if (!loading) {
-      reset();
-    }
-  }, [completed, loading, reset, snapToEnd]);
+    if (completed) return;
+    if (loading) return;
+    const frame = requestAnimationFrame(reset);
+    return () => cancelAnimationFrame(frame);
+  }, [completed, loading, reset]);
 
   const onMove = useCallback((clientX: number) => {
     if (!dragging.current) return;
@@ -152,12 +149,18 @@ export function SlideToConfirm({
           tabIndex={locked ? -1 : 0}
           aria-disabled={locked}
           aria-label={label}
-          className={`absolute left-1 top-1 z-10 flex h-12 w-12 cursor-grab touch-none items-center justify-center rounded-full shadow-md select-none active:cursor-grabbing ${
+          className={`absolute top-1 z-10 flex h-12 w-12 cursor-grab touch-none items-center justify-center rounded-full shadow-md select-none active:cursor-grabbing ${
+            completed ? "right-1" : "left-1"
+          } ${
             completed
               ? "bg-cops-on-tertiary-container text-white"
               : "bg-cops-secondary text-cops-on-secondary"
           }`}
-          style={{ transform: `translateX(${dragX}px)`, transition: isDragging ? "none" : "transform 0.3s ease" }}
+          style={
+            completed
+              ? undefined
+              : { transform: `translateX(${dragX}px)`, transition: isDragging ? "none" : "transform 0.3s ease" }
+          }
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
