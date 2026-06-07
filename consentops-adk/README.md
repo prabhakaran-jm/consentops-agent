@@ -65,4 +65,74 @@ OpenAPI spec and system prompt live under `docs/` (single source of truth).
 
 See [docs/agent-builder-setup.md](../docs/agent-builder-setup.md) for the full demo script and Agent Engine deploy.
 
-**Automated deploy:** `infra/terraform` (staging bucket) + `./scripts/deploy-adk-agent-engine.sh`
+## Agent Engine deploy (Step 2)
+
+From repo root, after `terraform apply` (staging bucket) and Fivetran secrets in Secret Manager:
+
+```bash
+# Git Bash / Linux — always --recreate after agent.py or requirements.txt changes
+ADK_RECREATE=true ./scripts/deploy-adk-agent-engine.sh --recreate
+```
+
+```powershell
+# PowerShell
+$env:ADK_RECREATE = "true"
+python scripts/deploy_adk_agent_engine.py --recreate
+```
+
+The deploy script sets `CONSENTOPS_API_BASE_URL`, deploys with `min_instances=1`
+(so the Playground always has a warm instance), and runs a `create_session` smoke
+test — the deploy returns non-zero if the engine has no running instance within 5 min.
+
+### Fivetran MCP: ON locally, OFF on Agent Engine (by design)
+
+Local `adk web` runs the full read-only MCP toolset (`get_account_info` …
+`list_destinations`) by fetching the server via `uvx` in an **isolated** env.
+
+On **Agent Engine** native stdio MCP is off (`ADK_FIVETRAN_MCP_ENABLED=false`) — adding
+`fivetran-mcp` to `requirements.txt` pulls `fastmcp>=2.0.0` + `httpx>=0.28` into the
+agent venv, which conflicts with the `google-adk`/`google-genai`/`aiplatform` runtime and
+crashes the worker (`does not have running instances` — confirmed by the deploy smoke
+test). Agent Engine has no `uvx` to isolate the server.
+
+Instead, the Engine agent registers **Cloud Run-backed FunctionTools** with the same
+read-only names (`get_account_info` … `list_destinations`). Each call hits
+`POST /api/agent/fivetran` on Cloud Run, where Fivetran MCP runs in an isolated runtime
+(no fastmcp/httpx in the Engine venv). Playground traces show the 5-tool discovery chain
+plus `consentOpsScanWarehouse` and `consentOpsBuildPlan`.
+
+The agent's MCP build is also **fail-safe** (any setup error degrades to scan+plan),
+and the deploy's smoke test fails fast if a future change ever takes the engine down.
+(The separate, earlier `does not have running instances` error was a missing
+`roles/aiplatform.user` IAM binding — see below.)
+
+### Required APIs and IAM (one-time)
+
+`GOOGLE_CLOUD_PROJECT` is **reserved** on Agent Engine and cannot be set; the deploy
+passes `CLOUD_ML_PROJECT_ID` instead and relies on Cloud Resource Manager:
+
+```bash
+gcloud services enable cloudresourcemanager.googleapis.com aiplatform.googleapis.com \
+  --project=rapid-agent-hackathon-26
+
+# REQUIRED: the custom runtime SA needs aiplatform.sessions.* for the managed
+# session service. Without this, create_session returns 403 PERMISSION_DENIED and
+# the Playground reports "does not have running instances".
+RUNTIME_SA=consentops-agent-run@rapid-agent-hackathon-26.iam.gserviceaccount.com
+gcloud projects add-iam-policy-binding rapid-agent-hackathon-26 \
+  --member=serviceAccount:$RUNTIME_SA --role=roles/aiplatform.user --condition=None
+
+# Only if you enable MCP on Engine (ADK_FIVETRAN_MCP_ENABLED=true):
+gcloud secrets add-iam-policy-binding FIVETRAN_API_KEY \
+  --member=serviceAccount:$RUNTIME_SA --role=roles/secretmanager.secretAccessor \
+  --project=rapid-agent-hackathon-26
+gcloud secrets add-iam-policy-binding FIVETRAN_API_SECRET \
+  --member=serviceAccount:$RUNTIME_SA --role=roles/secretmanager.secretAccessor \
+  --project=rapid-agent-hackathon-26
+```
+
+`--recreate` deletes the existing engine (from `.agent_engine_id`) before create;
+required after any `agent.py` / `requirements.txt` change because `update()` does
+not rebuild the container.
+
+**Automated deploy:** `infra/terraform` (staging bucket) + `./scripts/deploy-adk-agent-engine.sh --recreate`
