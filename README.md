@@ -146,20 +146,19 @@ flowchart TB
     C1[" "] -->|AI / Gemini| C2[" "]
   end
 
-  classDef run fill:#e8f0fe,stroke:#4285f4,color:#1a237e;
-  classDef data fill:#e6f4ea,stroke:#34a853,color:#0b5394;
-  classDef ai fill:#f3e8fd,stroke:#8b5cf6,color:#4a148c;
-  classDef partner fill:#fff4e5,stroke:#f59e0b,color:#7a4f01;
-  classDef user fill:#e8f0fe,stroke:#4285f4,color:#1a237e;
+  classDef run fill:#e8f0fe,stroke:#4285f4,color:#1a237e
+  classDef data fill:#e6f4ea,stroke:#34a853,color:#0b5394
+  classDef ai fill:#f3e8fd,stroke:#8b5cf6,color:#4a148c
+  classDef partner fill:#fff4e5,stroke:#f59e0b,color:#7a4f01
+  classDef user fill:#e8f0fe,stroke:#4285f4,color:#1a237e
 
-  %% AI links (purple): Engine->GEM (4), ADK->GEM (7)
-  linkStyle 4,7 stroke:#8b5cf6,stroke-width:2px;
-  %% Async/config links (dashed orange): SM->Web (8), SM->ADK (9)
-  linkStyle 8,9 stroke:#f59e0b,stroke-width:1.5px,stroke-dasharray:6 4;
-  %% Legend strokes: sync (10), async (11), AI (12)
-  linkStyle 10 stroke:#5f6368;
-  linkStyle 11 stroke:#f59e0b,stroke-dasharray:6 4;
-  linkStyle 12 stroke:#8b5cf6;
+  linkStyle 4 stroke:#8b5cf6,stroke-width:2px
+  linkStyle 7 stroke:#8b5cf6,stroke-width:2px
+  linkStyle 8 stroke:#f59e0b,stroke-width:1.5px
+  linkStyle 9 stroke:#f59e0b,stroke-width:1.5px
+  linkStyle 10 stroke:#5f6368
+  linkStyle 11 stroke:#f59e0b
+  linkStyle 12 stroke:#8b5cf6
 ```
 
 </details>
