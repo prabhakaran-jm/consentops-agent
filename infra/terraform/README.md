@@ -39,7 +39,17 @@ Note the output `cloud_run_url` and paste it into [README](../../README.md) plat
 
 ## Build and push image (before or after first apply)
 
-If `create_artifact_registry = true`, Terraform creates the repo. Example:
+If `create_artifact_registry = true`, Terraform creates the repo. **Automated deploy** (recommended):
+
+```bash
+# From repo root — builds Dockerfile, pushes to Artifact Registry, updates Cloud Run
+python scripts/deploy_cloud_run.py
+# or: ./scripts/deploy-cloud-run.sh
+```
+
+Options: `--dry-run`, `--skip-build`, `--skip-smoke`, `--tag v20250603`. Config from `.env` and `terraform output`.
+
+Manual equivalent:
 
 ```bash
 # Must run from repo root (ConsentOps-Agent/), where Dockerfile lives
@@ -51,9 +61,10 @@ export IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/consentops/consentops-agent
 gcloud auth configure-docker "${REGION}-docker.pkg.dev"
 docker build -t "$IMAGE" -f Dockerfile .
 docker push "$IMAGE"
+gcloud run services update consentops-agent --image="$IMAGE" --region="$REGION" --project="$PROJECT_ID"
 ```
 
-Set `container_image = "$IMAGE"` in `terraform.tfvars`, then `terraform apply`.
+Set `container_image = "$IMAGE"` in `terraform.tfvars` for the **first** apply only; ongoing image updates use `deploy_cloud_run.py` (Terraform ignores image drift).
 
 ## ADK Agent Engine deploy
 
