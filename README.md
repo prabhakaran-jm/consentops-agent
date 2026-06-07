@@ -193,7 +193,7 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
-npm run test        # Vitest — 107 tests
+npm run test        # Vitest — 159 tests
 npm run typecheck
 npm run lint
 npm run build

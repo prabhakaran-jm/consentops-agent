@@ -516,11 +516,11 @@ def main() -> int:
         ID_FILE.write_text(engine_id, encoding="utf-8")
         print(f"Saved agent_engine_id to {ID_FILE.relative_to(ROOT)}")
         console_url = (
-            "https://console.cloud.google.com/vertex-ai/agents/agent-engines/"
-            f"{engine_id}?project={project}"
+            "https://console.cloud.google.com/agent-platform/runtimes/locations/"
+            f"{region}/agent-engines/{engine_id}/playground?project={project}"
         )
         print(f"Engine id: {engine_id}")
-        print(f"Vertex AI Agent Engine console: {console_url}")
+        print(f"Agent Engine playground: {console_url}")
 
     smoke_ok = True
     if engine_id and os.environ.get("ADK_SKIP_SMOKE", "").lower() not in ("1", "true", "yes"):
