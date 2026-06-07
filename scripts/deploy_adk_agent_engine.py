@@ -3,10 +3,14 @@
 
 Fixes ADK 1.14 packaging on Windows: dependency tarballs must use relative
 arcnames (agent_engine_app.py at tar root), not full Windows paths.
+
+After agent.py or requirements.txt changes, recreate the engine — update()
+does not rebuild the container. Use --recreate or ADK_RECREATE=true.
 """
 
 from __future__ import annotations
 
+import argparse
 import io
 import os
 import re
@@ -24,6 +28,7 @@ STAGING_DIR = ROOT / ".adk-staging"
 ID_FILE = ROOT / "consentops-adk" / ".agent_engine_id"
 DISPLAY_NAME = os.environ.get("ADK_DISPLAY_NAME", "ConsentOps Assistant")
 APP_NAME = AGENT_DIR.name
+DEFAULT_CONSENTOPS_API = "https://consentops-agent-538209538110.us-central1.run.app"
 
 _AGENT_ENGINE_APP = """\
 from vertexai.preview.reasoning_engines import AdkApp
@@ -59,10 +64,10 @@ def _load_dotenv(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def _terraform_staging_bucket() -> str | None:
+def _terraform_output(name: str) -> str | None:
     try:
         result = subprocess.run(
-            ["terraform", "-chdir=infra/terraform", "output", "-raw", "adk_staging_bucket"],
+            ["terraform", "-chdir=infra/terraform", "output", "-raw", name],
             capture_output=True,
             text=True,
             check=False,
@@ -75,27 +80,70 @@ def _terraform_staging_bucket() -> str | None:
     return None
 
 
-def _build_env_vars(project: str, region: str) -> dict[str, str]:
+def _terraform_staging_bucket() -> str | None:
+    return _terraform_output("adk_staging_bucket")
+
+
+def _secret_ref(secret_id: str, version: str = "latest") -> Any:
+    from google.cloud.aiplatform_v1.types import env_var
+
+    return env_var.SecretRef(secret=secret_id, version=version)
+
+
+def _build_env_vars(project: str, region: str) -> dict[str, Any]:
     """Agent Engine runtime env — do not set reserved GOOGLE_CLOUD_* names.
 
     Agent Engine ALWAYS runs Gemini via Vertex AI: the ADK reasoning-engine
-    template (vertexai/preview/reasoning_engines/templates/adk.py) hard-sets
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "1" at runtime, so a deployment
-    env of FALSE (to use the Gemini Developer API + API key) is silently
-    overridden — the engine still calls Vertex publisher models. Therefore the
-    model MUST be a valid Vertex publisher model.
+    template hard-sets GOOGLE_GENAI_USE_VERTEXAI=1 at runtime. Use a Vertex-valid
+    model id (default gemini-2.5-flash; override with ADK_GEMINI_MODEL).
 
-    The Cloud Run app keeps gemini-3.5-flash on the Developer API, but that id is
-    a 404 as a Vertex publisher model in us-central1, so the engine uses a Vertex
-    GA model instead (default gemini-2.5-flash; override with ADK_GEMINI_MODEL to
-    another Vertex-valid id). Vertex auth uses the runtime service account, so no
-    API key/secret is needed here.
+    Fivetran MCP credentials are mounted from Secret Manager by default
+    (FIVETRAN_API_KEY / FIVETRAN_API_SECRET). Set ADK_FIVETRAN_PLAIN_ENV=true
+    to pass keys from .env as plain env (local experiments only).
     """
     model = os.environ.get("ADK_GEMINI_MODEL", "gemini-2.5-flash")
-    return {
+    consentops_api = os.environ.get("CONSENTOPS_API_BASE_URL", DEFAULT_CONSENTOPS_API).rstrip("/")
+
+    # Fivetran MCP is OFF on Agent Engine by default — and this is a hard
+    # limitation, not just a precaution. Installing the MCP server (fivetran-mcp)
+    # into the agent venv pulls fastmcp>=2.0.0 + httpx>=0.28, which conflicts with
+    # the google-adk/genai/aiplatform runtime and crashes the worker ("does not
+    # have running instances"). Agent Engine has no `uvx` to isolate the server
+    # the way local `adk web` does. The agent still surfaces Fivetran context from
+    # Cloud Run's /api/agent/scan response. Local MCP is unaffected.
+    # ADK_FIVETRAN_MCP_ENABLED=true is intentionally NOT recommended on Engine.
+    mcp_enabled = os.environ.get("ADK_FIVETRAN_MCP_ENABLED", "false").lower() in ("1", "true", "yes")
+
+    env: dict[str, Any] = {
+        # Agent Engine injects GOOGLE_CLOUD_PROJECT as project number; aiplatform may
+        # call Cloud Resource Manager to resolve it. GOOGLE_CLOUD_PROJECT is RESERVED
+        # on Agent Engine (cannot be set), so we pass CLOUD_ML_PROJECT_ID instead.
+        "CLOUD_ML_PROJECT_ID": project,
         "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",
         "GEMINI_MODEL": model,
+        "ADK_GEMINI_MODEL": model,
+        "CONSENTOPS_API_BASE_URL": consentops_api,
+        "ADK_FIVETRAN_MCP_ENABLED": "true" if mcp_enabled else "false",
     }
+
+    if mcp_enabled:
+        env["FIVETRAN_ALLOW_WRITES"] = "false"
+        env["FIVETRAN_MCP_COMMAND"] = os.environ.get("ADK_FIVETRAN_MCP_COMMAND", "fivetran-mcp")
+        use_secrets = os.environ.get("ADK_FIVETRAN_PLAIN_ENV", "").lower() not in ("1", "true", "yes")
+        key_secret = os.environ.get("ADK_FIVETRAN_KEY_SECRET_ID", "FIVETRAN_API_KEY")
+        secret_secret = os.environ.get("ADK_FIVETRAN_API_SECRET_ID", "FIVETRAN_API_SECRET")
+        secret_version = os.environ.get("ADK_FIVETRAN_SECRET_VERSION", "latest")
+        if use_secrets:
+            env["FIVETRAN_API_KEY"] = _secret_ref(key_secret, secret_version)
+            env["FIVETRAN_API_SECRET"] = _secret_ref(secret_secret, secret_version)
+        else:
+            api_key = os.environ.get("FIVETRAN_API_KEY", "").strip()
+            api_secret = os.environ.get("FIVETRAN_API_SECRET", "").strip()
+            if api_key and api_secret:
+                env["FIVETRAN_API_KEY"] = api_key
+                env["FIVETRAN_API_SECRET"] = api_secret
+
+    return env
 
 
 def _prepare_staging() -> Path:
@@ -158,12 +206,29 @@ def _patch_upload_extra_packages() -> Any:
     return original
 
 
+def _engine_resource_name(project: str, region: str, engine_id: str) -> str:
+    return f"projects/{project}/locations/{region}/reasoningEngines/{engine_id}"
+
+
+def _delete_engine(*, project: str, region: str, engine_id: str) -> None:
+    from vertexai import agent_engines
+
+    resource_name = _engine_resource_name(project, region, engine_id)
+    print(f"Deleting Agent Engine {engine_id} (recreate required after agent.py changes)...")
+    agent_engines.delete(resource_name, force=True)
+    print("Delete requested — waiting briefly before create...")
+    import time
+
+    time.sleep(5)
+
+
 def _deploy(
     *,
     project: str,
     region: str,
     staging_bucket: str,
     agent_engine_id: str | None,
+    service_account: str | None,
 ) -> str | None:
     import vertexai
     from vertexai import agent_engines
@@ -181,20 +246,27 @@ def _deploy(
         agent_framework="google-adk",
     )
 
-    agent_config = {
+    agent_config: dict[str, Any] = {
         "display_name": DISPLAY_NAME,
-        "description": "Read-only ConsentOps scan+plan agent (execution in web UI).",
+        "description": (
+            "Read-only ConsentOps agent: Fivetran MCP pipeline discovery, "
+            "warehouse scan, classified cleanup plan. Execution in web UI."
+        ),
         "extra_packages": [str(package_dir.resolve())],
         "requirements": str((package_dir / APP_NAME / "requirements.txt").resolve()),
         "env_vars": _build_env_vars(project, region),
         "agent_engine": agent_engine,
+        # Keep a warm instance so the Playground never hits a cold-start that
+        # reports "does not have running instances".
+        "min_instances": int(os.environ.get("ADK_MIN_INSTANCES", "1")),
+        "max_instances": int(os.environ.get("ADK_MAX_INSTANCES", "2")),
     }
+    if service_account:
+        agent_config["service_account"] = service_account
 
     print("Deploying to agent engine...")
     if agent_engine_id:
-        resource_name = (
-            f"projects/{project}/locations/{region}/reasoningEngines/{agent_engine_id}"
-        )
+        resource_name = _engine_resource_name(project, region, agent_engine_id)
         result = agent_engines.update(resource_name=resource_name, **agent_config)
     else:
         result = agent_engines.create(**agent_config)
@@ -204,10 +276,77 @@ def _deploy(
     return match.group(1) if match else None
 
 
+def _smoke_test(*, project: str, region: str, engine_id: str, timeout_s: int = 300) -> bool:
+    """Poll create_session until the engine has a running instance (or time out).
+
+    Mirrors `await engine.async_create_session(...)`; a 200 here means the
+    Playground will not show "does not have running instances".
+    """
+    import time
+
+    from vertexai import agent_engines
+
+    resource_name = _engine_resource_name(project, region, engine_id)
+    deadline = time.time() + timeout_s
+    attempt = 0
+    last_error: Exception | None = None
+
+    print(f"\nSmoke test: polling create_session (timeout {timeout_s}s)...")
+    while time.time() < deadline:
+        attempt += 1
+        try:
+            engine = agent_engines.get(resource_name)
+            session = engine.create_session(user_id="smoke")
+            session_id = (
+                session.get("id") if isinstance(session, dict) else getattr(session, "id", session)
+            )
+            print(f"  Smoke test PASSED (attempt {attempt}): session {session_id}")
+            return True
+        except Exception as exc:  # noqa: BLE001 - report and retry until timeout
+            last_error = exc
+            print(f"  attempt {attempt}: not ready yet ({str(exc)[:140]})")
+            time.sleep(15)
+
+    print(f"SMOKE TEST FAILED after {timeout_s}s: {last_error}", file=sys.stderr)
+    return False
+
+
+def _print_post_deploy_hints(*, project: str, region: str, engine_id: str | None) -> None:
+    print()
+    print("Post-deploy validation (Agent Engine Playground):")
+    print("  1. New session → prompt: scan Ana Reyes, do not execute")
+    print("  2. Trace should show consentOpsScanWarehouse + consentOpsBuildPlan")
+    print("  3. Record count should match Cloud Run BigQuery (~25), not fixture 37")
+    print("  4. Fivetran context comes from the scan response. MCP runs locally")
+    print("     (adk web via uvx), not on Engine — installing fivetran-mcp here pulls")
+    print("     fastmcp/httpx that crash the runtime, and Engine has no uvx to isolate it.")
+    if engine_id:
+        print(f"  Engine id: {engine_id}")
+    runtime_sa = os.environ.get("ADK_SERVICE_ACCOUNT") or _terraform_output("runtime_service_account")
+    if runtime_sa:
+        print()
+        print("If Fivetran MCP fails with permission denied on secrets, grant Secret Accessor:")
+        print(f"  gcloud secrets add-iam-policy-binding FIVETRAN_API_KEY \\")
+        print(f"    --member=serviceAccount:{runtime_sa} --role=roles/secretmanager.secretAccessor")
+        print(f"  gcloud secrets add-iam-policy-binding FIVETRAN_API_SECRET \\")
+        print(f"    --member=serviceAccount:{runtime_sa} --role=roles/secretmanager.secretAccessor")
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Deploy ConsentOps ADK agent to Vertex AI Agent Engine.")
+    parser.add_argument(
+        "--recreate",
+        action="store_true",
+        help="Delete existing engine (from .agent_engine_id) and create a fresh one. "
+        "Required after agent.py or requirements.txt changes.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    # Windows consoles default to cp1252 and crash on the non-ASCII status
-    # output below (e.g. "→", "—"). Force UTF-8 so a successful deploy does not
-    # exit non-zero on a cosmetic print.
+    args = _parse_args()
+    recreate = args.recreate or os.environ.get("ADK_RECREATE", "").lower() in ("1", "true", "yes")
+
     for _stream in (sys.stdout, sys.stderr):
         _reconfigure = getattr(_stream, "reconfigure", None)
         if _reconfigure:
@@ -221,6 +360,7 @@ def main() -> int:
     project = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
     region = os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("GCP_REGION") or "us-central1"
     staging_bucket = os.environ.get("ADK_STAGING_BUCKET") or _terraform_staging_bucket()
+    service_account = os.environ.get("ADK_SERVICE_ACCOUNT") or _terraform_output("runtime_service_account")
 
     if not project:
         print("ERROR: Set GOOGLE_CLOUD_PROJECT in .env", file=sys.stderr)
@@ -238,13 +378,32 @@ def main() -> int:
     agent_engine_id: str | None = None
     if ID_FILE.is_file():
         agent_engine_id = ID_FILE.read_text(encoding="utf-8").strip() or None
-        if agent_engine_id:
-            print(f"Updating existing Agent Engine: {agent_engine_id}")
+
+    if recreate and agent_engine_id:
+        import vertexai
+
+        vertexai.init(project=project, location=region, staging_bucket=staging_bucket)
+        try:
+            _delete_engine(project=project, region=region, engine_id=agent_engine_id)
+        except Exception as exc:
+            print(f"WARNING: Delete failed ({exc}) — will attempt create anyway.", file=sys.stderr)
+        ID_FILE.unlink(missing_ok=True)
+        agent_engine_id = None
+    elif agent_engine_id:
+        print(f"Updating existing Agent Engine: {agent_engine_id}")
+        print(
+            "NOTE: update() does not rebuild the container after agent.py/requirements changes.",
+            file=sys.stderr,
+        )
+        print("  Re-run with --recreate or ADK_RECREATE=true after code changes.", file=sys.stderr)
 
     print(f"Deploying {AGENT_DIR.relative_to(ROOT)} to Agent Engine...")
     print(f"  project:  {project}")
     print(f"  region:   {region}")
     print(f"  staging:  {staging_bucket}")
+    if service_account:
+        print(f"  runtime SA: {service_account}")
+    print(f"  recreate: {recreate}")
     print()
 
     restore_clone = _patch_module_agent_clone()
@@ -255,6 +414,7 @@ def main() -> int:
             region=region,
             staging_bucket=staging_bucket,
             agent_engine_id=agent_engine_id,
+            service_account=service_account,
         )
     except Exception as exc:
         import traceback
@@ -272,6 +432,7 @@ def main() -> int:
                     region=region,
                     staging_bucket=staging_bucket,
                     agent_engine_id=None,
+                    service_account=service_account,
                 )
             except Exception as retry_exc:
                 print(f"Deploy failed: {retry_exc}", file=sys.stderr)
@@ -298,8 +459,29 @@ def main() -> int:
     if engine_id:
         ID_FILE.write_text(engine_id, encoding="utf-8")
         print(f"Saved agent_engine_id to {ID_FILE.relative_to(ROOT)}")
+        console_url = (
+            "https://console.cloud.google.com/vertex-ai/agents/agent-engines/"
+            f"{engine_id}?project={project}"
+        )
+        print(f"Engine id: {engine_id}")
+        print(f"Vertex AI Agent Engine console: {console_url}")
+
+    smoke_ok = True
+    if engine_id and os.environ.get("ADK_SKIP_SMOKE", "").lower() not in ("1", "true", "yes"):
+        smoke_ok = _smoke_test(project=project, region=region, engine_id=engine_id)
 
     print(f'\nDone. Open Vertex AI → Agent Engine and chat with "{DISPLAY_NAME}".')
+    _print_post_deploy_hints(project=project, region=region, engine_id=engine_id)
+
+    if not smoke_ok:
+        print(
+            "\nDeploy created the engine but the smoke test failed (no running instance). "
+            "Check logs: gcloud logging read "
+            f"'resource.labels.reasoning_engine_id={engine_id}' "
+            f"--project={project} --limit=50 --order=desc",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
