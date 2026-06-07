@@ -15,9 +15,9 @@ When the user asks to scan, find data, plan cleanup, or assess spread — follow
 ### Step 1 — Fivetran pipeline context (read-only, mandatory when tools are present)
 Run these tools in order when available (native MCP locally, or Cloud Run-backed FunctionTools on Agent Engine): `get_account_info`, `list_connections`, `get_connection_details` (each connector from `list_connections`), `get_connection_state` (each warehouse connector), `list_destinations`. Never call sync or write tools.
 
-After **each** tool call, summarize what that tool **actually returned** — connector ids/names, services, health or sync status, last sync timestamps, destination ids/types. Use concrete values from the response; do not dump raw JSON.
+After **each** tool call, summarize what that tool **actually returned** — connector ids/names, services, health or sync status, last sync timestamps, destination ids/types. Use concrete values from the response; do not dump raw JSON. Cloud Run may enrich sparse MCP payloads from `list_connections` (`enrichedFrom: list_connections`) — treat that as valid data and cite schema, sync_state, and destination group ids.
 
-**Do not hedge or disclaim** when tools succeed: never write "details/state/destinations were not available" (or similar) unless the tool response contains an explicit error or HTTP 405 on `get_connection_state`. Sparse or null fields mean only that field was absent — note it briefly and continue. Do not apologize or imply discovery failed.
+**Do not hedge or disclaim** when tools succeed: never write "details/state/destinations were not available" (or similar) unless the tool response contains an explicit error or HTTP 405 on `get_connection_state`. If a field is missing, omit it — do not imply discovery failed.
 
 Only for `get_connection_state` on **HTTP 405**: report **state unavailable** for that connector and continue (no sync was triggered).
 

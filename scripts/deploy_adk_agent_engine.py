@@ -176,6 +176,35 @@ def _patch_module_agent_clone() -> Any:
     return original
 
 
+def _should_skip_staging_file(file_path: Path) -> bool:
+    """Skip bytecode and AppleDouble/resource-fork junk that breaks Agent Engine builds."""
+    if "__pycache__" in file_path.parts:
+        return True
+    name = file_path.name
+    if name.startswith("._") or name == ".DS_Store" or name == "Thumbs.db":
+        return True
+    return False
+
+
+def _warn_local_junk_packages() -> None:
+    """Warn if local site-packages contain AppleDouble files (common after Mac archive sync)."""
+    try:
+        import google.adk  # noqa: PLC0415 - optional preflight only
+    except ImportError:
+        return
+
+    adk_root = Path(google.adk.__file__).resolve().parent
+    junk = [p for p in adk_root.rglob("*") if p.is_file() and p.name.startswith("._")]
+    if not junk:
+        return
+    print(
+        f"WARNING: Found {len(junk)} AppleDouble '._*' files under local google.adk.\n"
+        "  These can pollute dependency scans. Reinstall before deploy:\n"
+        "    pip uninstall google-adk -y && pip install google-adk==1.14.1",
+        file=sys.stderr,
+    )
+
+
 def _patch_upload_extra_packages() -> Any:
     """Tar with relative arcnames so Agent Engine can import agent_engine_app."""
     import vertexai.agent_engines._agent_engines as ae_mod
@@ -191,7 +220,7 @@ def _patch_upload_extra_packages() -> Any:
                 for file_path in root.rglob("*"):
                     if not file_path.is_file():
                         continue
-                    if "__pycache__" in file_path.parts:
+                    if _should_skip_staging_file(file_path):
                         continue
                     arcname = file_path.relative_to(root).as_posix()
                     tar.add(file_path, arcname=arcname)
@@ -216,10 +245,11 @@ def _delete_engine(*, project: str, region: str, engine_id: str) -> None:
     resource_name = _engine_resource_name(project, region, engine_id)
     print(f"Deleting Agent Engine {engine_id} (recreate required after agent.py changes)...")
     agent_engines.delete(resource_name, force=True)
-    print("Delete requested — waiting briefly before create...")
+    print("Delete requested — waiting for delete to propagate...")
     import time
 
-    time.sleep(5)
+    wait_s = int(os.environ.get("ADK_DELETE_WAIT_SECONDS", "30"))
+    time.sleep(wait_s)
 
 
 def _deploy(
@@ -265,15 +295,39 @@ def _deploy(
         agent_config["service_account"] = service_account
 
     print("Deploying to agent engine...")
-    if agent_engine_id:
-        resource_name = _engine_resource_name(project, region, agent_engine_id)
-        result = agent_engines.update(resource_name=resource_name, **agent_config)
-    else:
-        result = agent_engines.create(**agent_config)
+    create_attempts = int(os.environ.get("ADK_CREATE_RETRIES", "3"))
+    last_exc: Exception | None = None
 
-    resource_name = getattr(result, "resource_name", None) or str(result)
-    match = re.search(r"reasoningEngines/(\d+)", resource_name)
-    return match.group(1) if match else None
+    for attempt in range(1, create_attempts + 1):
+        try:
+            if agent_engine_id:
+                resource_name = _engine_resource_name(project, region, agent_engine_id)
+                result = agent_engines.update(resource_name=resource_name, **agent_config)
+            else:
+                result = agent_engines.create(**agent_config)
+            resource_name = getattr(result, "resource_name", None) or str(result)
+            match = re.search(r"reasoningEngines/(\d+)", resource_name)
+            return match.group(1) if match else None
+        except Exception as exc:
+            last_exc = exc
+            from google.api_core import exceptions as gcp_exceptions
+
+            retryable = isinstance(exc, gcp_exceptions.InternalServerError)
+            if not retryable or attempt == create_attempts:
+                raise
+            backoff_s = 30 * attempt
+            print(
+                f"Create attempt {attempt} failed ({exc}). "
+                f"Retrying in {backoff_s}s ({attempt + 1}/{create_attempts})...",
+                file=sys.stderr,
+            )
+            import time
+
+            time.sleep(backoff_s)
+
+    if last_exc:
+        raise last_exc
+    return None
 
 
 def _smoke_test(*, project: str, region: str, engine_id: str, timeout_s: int = 300) -> bool:
@@ -405,6 +459,8 @@ def main() -> int:
         print(f"  runtime SA: {service_account}")
     print(f"  recreate: {recreate}")
     print()
+
+    _warn_local_junk_packages()
 
     restore_clone = _patch_module_agent_clone()
     restore_upload = _patch_upload_extra_packages()
