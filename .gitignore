@@ -57,6 +57,13 @@ consentops-adk/.agent_engine_id
 next-env.d.ts
 
 docs/**
+!docs/agent-builder-setup.md
+!docs/devpost-submission.md
+!docs/demo-video-script.md
+!docs/cloud-run-deployment.md
+!docs/fivetran-bigquery-demo.md
+!docs/bigquery-demo-setup.md
+!docs/fivetran-mcp-evidence.md
 .cursor/**
 **/__pycache__/
 **/*.pyc

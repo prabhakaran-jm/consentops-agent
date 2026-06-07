@@ -96,6 +96,19 @@ export function PlatformStatusPanel({ status, loading, compact }: Props) {
                   : "not configured"}
               </dd>
             </div>
+            <div className="sm:col-span-2">
+              <dt className="font-medium text-cops-on-surface">Fivetran MCP tools (read-only)</dt>
+              <dd className="mt-1 flex flex-wrap gap-1">
+                {status.adapters.fivetranMcpToolsAvailable.map((tool) => (
+                  <span
+                    key={tool}
+                    className="rounded bg-cops-surface-container-high px-2 py-0.5 font-mono text-[11px] text-cops-on-surface-variant"
+                  >
+                    {tool}
+                  </span>
+                ))}
+              </dd>
+            </div>
           </dl>
 
           {status.workflow.lastPlanWarning && (

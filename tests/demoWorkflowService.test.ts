@@ -25,6 +25,9 @@ describe("demo workflow service", () => {
     expect(JSON.stringify(result.fivetran)).not.toContain("conn_zendesk_mock");
     expect(result.matches.length).toBe(37);
     expect(result.beforeCount).toBe(37);
+    expect(result.mcpTrace).toHaveLength(5);
+    expect(result.pipelineLineage.length).toBeGreaterThan(0);
+    expect(result.mcpToolsRun).toBe(5);
     expect(result.spreadMap.crm_customers?.totalMatches).toBe(3);
   });
 

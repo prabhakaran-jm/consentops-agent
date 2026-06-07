@@ -1,3 +1,8 @@
+import type {
+  FivetranMcpTraceStep,
+  PipelineLineageEntry,
+} from "@/lib/connectors/fivetranPipelineDiscovery";
+import type { FivetranAgentToolSource } from "@/lib/connectors/fivetranAgentBridge";
 import type { FivetranConnectorPanelData } from "@/lib/connectors/fivetranPanelData";
 import type { DataSpreadMap } from "@/lib/warehouse/localWarehouse";
 import type { ConsentOpsAuditReport } from "@/lib/audit/auditReport";
@@ -9,6 +14,10 @@ export type ScanResponse = {
   matches: DataMatch[];
   spreadMap: Partial<DataSpreadMap>;
   beforeCount: number;
+  mcpTrace: FivetranMcpTraceStep[];
+  pipelineLineage: PipelineLineageEntry[];
+  fivetranDiscoverySource: FivetranAgentToolSource;
+  mcpToolsRun: number;
 };
 
 export type PlanProvenance = {

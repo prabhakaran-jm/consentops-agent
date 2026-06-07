@@ -11,7 +11,7 @@ export function StepPanel({
   bodyClassName = "p-6",
 }: {
   id?: string;
-  step: number;
+  step?: number;
   title: string;
   headerRight?: ReactNode;
   children: ReactNode;
@@ -28,9 +28,11 @@ export function StepPanel({
     >
       <div className="flex items-center justify-between border-b border-cops-outline-variant bg-cops-surface-container-low px-6 py-4">
         <div className="flex items-center gap-3">
-          <span className="rounded bg-cops-primary px-2 py-1 font-mono text-[10px] font-bold text-cops-on-primary">
-            STEP {step}
-          </span>
+          {step !== undefined ? (
+            <span className="rounded bg-cops-primary px-2 py-1 font-mono text-[10px] font-bold text-cops-on-primary">
+              STEP {step}
+            </span>
+          ) : null}
           <h2 className="text-lg font-semibold text-cops-primary">{title}</h2>
         </div>
         {headerRight}

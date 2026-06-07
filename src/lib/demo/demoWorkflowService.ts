@@ -2,6 +2,7 @@ import { planConsentCleanup, type PlannerSource } from "@/lib/agent/consentPlann
 import type { CleanupPlan } from "@/lib/warehouse/types";
 import { generateAuditReport, type ConsentOpsAuditReport } from "@/lib/audit/auditReport";
 import { getFivetranAdapter } from "@/lib/connectors/fivetranAdapterFactory";
+import { discoverFivetranPipelineViaMcp } from "@/lib/connectors/fivetranPipelineDiscovery";
 import { getFivetranConnectorPanelData } from "@/lib/connectors/fivetranPanelData";
 import type { ExecutionApproval } from "@/lib/execution/safetyPolicy";
 import { getEmailSha256 } from "@/lib/demo/seedData";
@@ -38,8 +39,11 @@ export class DemoWorkflowError extends Error {
 export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
   const state = getDemoWorkflowState();
   const subject = subjectOverride ?? state.subject;
-  const fivetran = await getFivetranConnectorPanelData();
-  const { matches, scanSource } = await scanSubjectForWorkflow(subject, state.tables);
+  const [fivetran, { matches, scanSource }, pipelineDiscovery] = await Promise.all([
+    getFivetranConnectorPanelData(),
+    scanSubjectForWorkflow(subject, state.tables),
+    discoverFivetranPipelineViaMcp(),
+  ]);
   const spreadMap = buildDataSpreadMap(matches);
   updateDemoWorkflowState({ latestScanMatches: cloneMatches(matches) });
 
@@ -50,6 +54,10 @@ export const runDemoScan = async (subjectOverride?: ConsentSubject) => {
     spreadMap,
     beforeCount: matches.length,
     scanSource,
+    mcpTrace: pipelineDiscovery.mcpTrace,
+    pipelineLineage: pipelineDiscovery.pipelineLineage,
+    fivetranDiscoverySource: pipelineDiscovery.discoverySource,
+    mcpToolsRun: pipelineDiscovery.toolsRun,
   };
 };
 

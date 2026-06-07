@@ -73,6 +73,10 @@ export async function POST(request: Request) {
         spreadMap: scan.spreadMap,
         matchCount: scan.matches.length,
         scanSource: scan.scanSource,
+        mcpTrace: scan.mcpTrace,
+        pipelineLineage: scan.pipelineLineage,
+        fivetranDiscoverySource: scan.fivetranDiscoverySource,
+        mcpToolsRun: scan.mcpToolsRun,
       },
       summaryForAgent: {
         recordsFound: scan.matches.length,

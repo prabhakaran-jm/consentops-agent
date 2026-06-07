@@ -102,6 +102,13 @@ describe("platform status", () => {
     expect(status.adapters.fivetranIntegrationSource).toBe("mcp_runtime");
     expect(status.adapters.fivetranPanelMode).toBe("mcp_runtime");
     expect(status.adapters.fivetranMcpRuntimeEnabled).toBe(true);
+    expect(status.adapters.fivetranMcpToolsAvailable).toEqual([
+      "get_account_info",
+      "get_connection_details",
+      "get_connection_state",
+      "list_connections",
+      "list_destinations",
+    ]);
   });
 
   it("reflects last planner source after buildDemoPlan", async () => {

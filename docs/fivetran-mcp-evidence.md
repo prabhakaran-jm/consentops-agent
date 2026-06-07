@@ -184,6 +184,28 @@ Redacted aliases only — no raw connector, account, group, or destination IDs; 
 
 ---
 
+## Agent Engine session (Playground trace)
+
+**Engine ID:** stored in `consentops-adk/.agent_engine_id` (not committed). Open Vertex AI → Agent Engine → Playground.
+
+Validated session (2026-06-07):
+
+| Step | Tool | Result (sanitized) |
+|------|------|-------------------|
+| 1 | `get_account_info` | Account active; 2 connections; destination group redacted |
+| 2 | `list_connections` | `connector_01` (bigquery_db), `connector_02` (fivetran_log) |
+| 3 | `get_connection_details` | Primary BigQuery connector healthy |
+| 4 | `get_connection_state` | Scheduled sync; last success timestamp |
+| 5 | `list_destinations` | BigQuery destination group |
+| 6 | `consentOpsScanWarehouse` | **25** records (hosted BigQuery) |
+| 7 | `consentOpsBuildPlan` | Classified plan; execution blocked in agent |
+
+**Screenshot for Devpost:** capture Playground trace with all seven tool names visible. Cloud Run dashboard **Fivetran MCP discovery** panel mirrors steps 1–5 server-side.
+
+Engine path uses Cloud Run FunctionTools for Fivetran (stdio MCP disabled on Agent Engine workers). Local `adk web` uses native `McpToolset`.
+
+---
+
 ## Relationship to REST panel (secondary)
 
 When judges open **only** the ConsentOps web app (no MCP host), Step 2 shows the same narrative via **read-only REST**:

@@ -1,5 +1,6 @@
 import type { FivetranConnector, FivetranConnectorHealth } from "@/lib/connectors/fivetranAdapter";
 import type { WarehouseTableName } from "@/lib/warehouse/types";
+import { WAREHOUSE_TABLE_NAMES } from "@/lib/warehouse/warehouseConfig";
 
 export const FIVETRAN_API_BASE = "https://api.fivetran.com/v1";
 
@@ -33,6 +34,7 @@ const SERVICE_TABLE_HINTS: Record<string, WarehouseTableName[]> = {
   segment: ["marketing_email_events", "analytics_customer_360", "ai_training_feedback_export"],
   shopify: ["commerce_orders"],
   salesforce: ["crm_customers"],
+  bigquery_db: WAREHOUSE_TABLE_NAMES,
 };
 
 export const inferMappedTables = (service: string | undefined): WarehouseTableName[] => {

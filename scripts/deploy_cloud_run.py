@@ -58,7 +58,9 @@ def _load_dotenv(path: Path) -> None:
 def _terraform_output(name: str) -> str | None:
     try:
         result = subprocess.run(
-            ["terraform", "-chdir=infra/terraform", "output", "-raw", name],
+            _resolve_command_argv(
+                ["terraform", "-chdir=infra/terraform", "output", "-raw", name]
+            ),
             capture_output=True,
             text=True,
             check=False,
@@ -77,17 +79,31 @@ def _require_tool(name: str) -> None:
         sys.exit(1)
 
 
+def _resolve_command_argv(args: list[str]) -> list[str]:
+    """Resolve bare tool names to full paths (required on Windows for gcloud.cmd)."""
+    if not args:
+        return args
+    executable = args[0]
+    if os.path.isabs(executable) or os.sep in executable or (os.altsep and os.altsep in executable):
+        return args
+    resolved = shutil.which(executable)
+    if resolved:
+        return [resolved, *args[1:]]
+    return args
+
+
 def _run(
     args: list[str],
     *,
     dry_run: bool = False,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str] | None:
-    printable = " ".join(args)
+    resolved_args = _resolve_command_argv(args)
+    printable = " ".join(resolved_args)
     print(f"+ {printable}")
     if dry_run:
         return None
-    result = subprocess.run(args, text=True, check=False)
+    result = subprocess.run(resolved_args, text=True, check=False)
     if check and result.returncode != 0:
         print(f"ERROR: command failed (exit {result.returncode}): {printable}", file=sys.stderr)
         sys.exit(result.returncode)
@@ -142,16 +158,18 @@ def _service_url(config: DeployConfig) -> str:
         return url.rstrip("/")
 
     result = subprocess.run(
-        [
-            "gcloud",
-            "run",
-            "services",
-            "describe",
-            config.service_name,
-            f"--project={config.project}",
-            f"--region={config.region}",
-            "--format=value(status.url)",
-        ],
+        _resolve_command_argv(
+            [
+                "gcloud",
+                "run",
+                "services",
+                "describe",
+                config.service_name,
+                f"--project={config.project}",
+                f"--region={config.region}",
+                "--format=value(status.url)",
+            ]
+        ),
         capture_output=True,
         text=True,
         check=False,

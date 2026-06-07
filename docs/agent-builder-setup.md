@@ -81,7 +81,7 @@ Try:
 **Expect the agent to:**
 
 - Call `consentOpsScanAndPlan`
-- Report the exact `scan.matchCount` from the tool (BigQuery on Cloud Run is typically **29**; local JSON fixtures are **37** — do not hardcode)
+- Report the exact `scan.matchCount` from the tool (BigQuery on Cloud Run is typically **25**; local JSON fixtures are **37** — do not hardcode)
 - Mention Fivetran connector count (read-only)
 - State `source: gemini` or `deterministic`
 - Link to the **ConsentOps dashboard** for approval and execution
@@ -163,7 +163,7 @@ To update an existing deployment, pass `--agent_engine_id=YOUR_REASONING_ENGINE_
 
 1. **ADK or Agent Builder chat:** ask for scan + plan → show tool call + summary.
 2. **Switch to browser:** open [hosted ConsentOps URL](https://consentops-agent-538209538110.us-central1.run.app).
-3. **UI:** Generate plan (if needed) → select 2–3 delete actions → Execute approved cleanup → show audit (record count depends on warehouse: ~29 BigQuery, ~37 local JSON).
+3. **UI:** Generate plan (if needed) → select 2–3 delete actions → Execute approved cleanup → show audit (record count depends on warehouse: ~25 BigQuery on Cloud Run, ~37 local JSON).
 
 This shows **two surfaces, one backend**: chat for discovery/planning, UI for human-in-the-loop execution.
 

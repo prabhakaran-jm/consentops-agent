@@ -14,6 +14,7 @@ import { DataSpreadMapPanel } from "./DataSpreadMapPanel";
 import { DeletionRequestCard } from "./DeletionRequestCard";
 import { FivetranConnectorPanel } from "./FivetranConnectorPanel";
 import { HumanInLoopBanner, PlatformStatusPanel } from "./PlatformStatusPanel";
+import { PipelineDiscoveryPanel } from "./PipelineDiscoveryPanel";
 import type {
   AuditResponse,
   ExecuteResponse,
@@ -208,7 +209,10 @@ export function ConsentOpsDashboard() {
             </div>
           )}
 
-          <details className="rounded-lg border border-cops-outline-variant bg-cops-surface-container-lowest">
+          <details
+            id="platform-status"
+            className="scroll-mt-24 rounded-lg border border-cops-outline-variant bg-cops-surface-container-lowest"
+          >
             <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-cops-secondary">
               Full platform status (judges)
             </summary>
@@ -256,6 +260,12 @@ export function ConsentOpsDashboard() {
 
             <div className="space-y-6 xl:col-span-4 xl:sticky xl:top-8">
               <FivetranConnectorPanel fivetran={scan?.fivetran ?? null} />
+              <PipelineDiscoveryPanel
+                mcpTrace={scan?.mcpTrace ?? null}
+                pipelineLineage={scan?.pipelineLineage ?? null}
+                discoverySource={scan?.fivetranDiscoverySource ?? null}
+                toolsRun={scan?.mcpToolsRun ?? null}
+              />
               <HumanInLoopBanner />
             </div>
           </div>

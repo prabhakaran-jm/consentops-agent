@@ -7,6 +7,7 @@ import {
   type FivetranIntegrationSource,
   type FivetranPanelMode,
 } from "@/lib/connectors/fivetranAdapterFactory";
+import { READ_ONLY_FIVETRAN_TOOL_NAMES } from "@/lib/connectors/fivetranMcpRuntime";
 import { getRealFivetranConfigFromEnv } from "@/lib/connectors/realFivetranAdapter";
 import { getDemoWorkflowState } from "@/lib/demo/demoWorkflowState";
 import { getBigQueryConfigFromEnv } from "@/lib/warehouse/bigQueryWarehouse";
@@ -42,6 +43,7 @@ export type PlatformStatus = {
     fivetranPanelMode: FivetranPanelMode;
     fivetranIntegrationSource: FivetranIntegrationSource;
     fivetranMcpRuntimeEnabled: boolean;
+    fivetranMcpToolsAvailable: string[];
     fivetranRealConfigured: boolean;
   };
   workflow: {
@@ -95,6 +97,7 @@ export const getPlatformStatus = (): PlatformStatus => {
       fivetranPanelMode: getFivetranPanelMode(),
       fivetranIntegrationSource: getFivetranIntegrationSource(),
       fivetranMcpRuntimeEnabled: getFivetranIntegrationSource() === "mcp_runtime",
+      fivetranMcpToolsAvailable: [...READ_ONLY_FIVETRAN_TOOL_NAMES].sort(),
       fivetranRealConfigured: getRealFivetranConfigFromEnv() !== null,
     },
     workflow: {
