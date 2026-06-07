@@ -91,82 +91,139 @@ Designed so destructive work cannot run by accident:
 
 ## Architecture
 
+Hosted Cloud Run uses **`bigquery_full`** (scan, execute, and verify on BigQuery). Local dev defaults to **in-memory JSON fixtures** unless you configure BigQuery. Fivetran runs **read-only MCP discovery** at scan time when credentials are set.
+
 ```mermaid
 flowchart TB
-  subgraph UI["Dashboard (Next.js)"]
-    Scan[Scan data spread]
-    Plan[Generate cleanup plan]
-    Approve[Select & approve actions]
-    Execute[Execute approved cleanup]
-    Audit[View audit report]
+  subgraph UI["Dashboard · Next.js"]
+    direction TB
+    S1[Scan data spread]
+    S2[Generate cleanup plan]
+    S3[Select & approve actions]
+    S4[Execute approved cleanup]
+    S5[View audit report]
   end
 
-  subgraph API["API routes"]
+  subgraph API["API routes · Cloud Run"]
+    direction TB
     RScan["/api/scan"]
     RPlan["/api/plan"]
     RExec["/api/execute"]
     RAudit["/api/audit"]
-    RStatus["/api/status"]
-    RAgent["/api/agent/plan"]
+    RAgentScan["/api/agent/scan"]
+    RAgentPlan["/api/agent/plan"]
+    RAgentFt["/api/agent/fivetran"]
   end
 
-  subgraph Agent["Planning agent"]
-    Gemini[Gemini planner]
-    Det[Deterministic fallback]
-    Gemini -->|fail / invalid| Det
+  subgraph Plan["Planning agent"]
+    Gemini["Gemini planner"]
+    Det["Deterministic fallback"]
+    Gemini -->|fail / invalid plan| Det
   end
 
-  subgraph Data["Data layer"]
-    WH[(Local JSON warehouse)]
-    FT[Fivetran mock adapter]
+  subgraph FT["Fivetran · read-only"]
+    MCP["MCP runtime · 5 discovery tools"]
+    REST["REST adapter · connector panel"]
   end
 
-  subgraph Safety["Safety & execution"]
-    Policy[Safety policy]
-    Exec[Cleanup executor]
-    Verify[Live re-scan]
+  subgraph WH["Warehouse · mode-controlled"]
+    BQ[("BigQuery · consentops_demo")]
+    LJ[("Local JSON fixtures")]
   end
 
-  Scan --> RScan --> WH
-  RScan --> FT
-  Plan --> RPlan --> Agent
-  RPlan --> WH
-  Approve --> RExec
-  RExec --> Policy --> Exec --> WH
-  Exec --> Verify --> WH
-  Execute --> RAudit
-  RAudit --> Audit
+  subgraph Safe["Safety & verification"]
+    Policy["Safety policy"]
+    Exec["Cleanup executor"]
+    Verify["Live re-scan"]
+    Policy --> Exec --> Verify
+  end
+
+  S1 --> RScan
+  S2 --> RPlan
+  S3 --> RExec
+  S4 --> RExec
+  S5 --> RAudit
+
+  RScan --> MCP
+  RScan --> REST
+  RScan --> BQ
+  RScan --> LJ
+
+  RPlan --> Plan
+  Plan --> BQ
+  Plan --> LJ
+
+  RExec --> Policy
+  Verify --> BQ
+  Verify --> LJ
+
+  RAgentScan --> RScan
+  RAgentPlan --> RPlan
+  RAgentFt --> MCP
+
+  RAudit --> S5
+
+  classDef gcp fill:#dce9ff,stroke:#006398,stroke-width:2px,color:#0b1c30
+  classDef ft fill:#e6f4ea,stroke:#009668,stroke-width:2px,color:#0b1c30
+  classDef wh fill:#eff4ff,stroke:#006398,stroke-width:2px,color:#0b1c30
+  classDef safe fill:#fff8e1,stroke:#006398,stroke-width:1px,color:#0b1c30
+
+  class BQ,LJ wh
+  class MCP,REST ft
+  class Gemini,Det,RAgentScan,RAgentPlan,RAgentFt gcp
+  class Policy,Exec,Verify safe
 ```
+
+| Layer | Components |
+|-------|------------|
+| **Ingestion** | Fivetran connectors → BigQuery dataset (demo uses `npm run bigquery:setup` fixtures) |
+| **Discovery** | Fivetran MCP at scan (`list_connections`, sync state, destinations) + warehouse subject scan |
+| **Reasoning** | Gemini cleanup plan, validated by deterministic safety rules |
+| **Execution** | Approval-gated DML on BigQuery (`bigquery_full`) or in-memory JSON (`local_json`) |
+| **Verification** | Post-execute live re-scan — counts come from the warehouse, not hardcoded |
+| **Agent APIs** | Read-only `/api/agent/*` for Google ADK / Agent Builder (scan, plan, Fivetran tools) |
 
 ---
 
 ## Demo flow
 
+Example walkthrough for synthetic subject **Ana Reyes** (hosted BigQuery after `npm run bigquery:setup`, or local JSON fixtures):
+
 ```
 Consent withdrawal (Ana Reyes)
         │
         ▼
-   Scan warehouse ──► live beforeCount (37 after full seed) across 7 tables + Fivetran MCP discovery
+   Scan warehouse ──► 37 matches across 7 tables + Fivetran MCP discovery
+        │              (quote live beforeCount from the scan response)
+        ▼
+   Generate plan ──► 37 classified actions (delete / anonymize / retain / review)
         │
         ▼
-   Generate plan ──► Classified actions (delete / anonymize / retain / review)
-        │
-        ▼
-   Human approval ──► Reviewer selects specific action IDs
+   Human approval ──► e.g. 3 action IDs: 1 delete + 1 anonymize + 1 retain
         │
         ▼
    Execute ──► Safety policy gates → approved actions only
         │
         ▼
-   Live re-scan ──► Remaining matches counted from warehouse, not fixtures
+   Live re-scan ──► 35 remaining matches (37 − delete − anonymize; retain stays)
         │
         ▼
-   Audit report ──► Connectors, actions, before/after, disclaimers
+   Audit report ──► Before 37 / After 35 · 3 approved & executed · retain policies
+        │
+        ▼
+   Re-scan (optional) ──► Step 1 “Re-scan data spread” confirms 35 on warehouse
 ```
 
-**Try it:** Scan → Generate cleanup plan → Select actions → Execute approved cleanup → View audit report.
+| Step | Expected count | Notes |
+|------|----------------|-------|
+| Initial scan | **37** | All seven demo tables loaded (`seedData.ts` / `bigquery:setup`) |
+| After 3-action execute | **35** | One delete + one anonymize remove live matches; retain does not |
+| Audit hero | **37 → 35** | “2 matches removed or anonymized” on live re-scan |
+| Post-audit re-scan | **35** | Independent confirmation from Step 1 |
 
-Before execution, the audit panel shows **No execution yet.** Generating a new plan also clears stale audit state.
+**Try it:** Scan → Generate cleanup plan → Select actions → Slide to confirm execute → View audit report → Re-scan.
+
+Before execution, the audit panel shows **No execution yet.** Generating a new plan clears stale audit state.
 
 ---
 
