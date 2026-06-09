@@ -244,7 +244,7 @@ Before execution, the audit panel shows **No execution yet.** Generating a new p
 ## Local setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/prabhakaran-jm/consentops-agent.git
 cd ConsentOps-Agent
 npm install
 cp .env.example .env.local
